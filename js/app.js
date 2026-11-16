@@ -170,6 +170,9 @@
   function photoSrc(name) {
     var p = S.get("photo:" + name);
     if (p && p.src && !failedImg[p.src]) return p.src;
+    // App 自带的实拍照片（有授权，作者见「我的」→「图片来源」）
+    var b = (window.MP_PHOTOS || {})[name];
+    if (b && b.file && !failedImg[b.file]) return b.file;
     if (CFG.autoPhotos === false) return null;
     var a = autoPhoto(name);
     return failedImg[a] ? null : a;
@@ -1174,9 +1177,22 @@
       who.appendChild(b);
     });
     renderShare();
+    renderCredits();
     var st = S.status();
     $("app-foot").innerHTML = (st === "ok" ? "✓ 全家同步中" : st === "local" ? "只存在这部手机" : st === "badkey" ? "链接不对，同步不上" : "正在同步…") +
       (S.pendingCount() ? " · 还有 " + S.pendingCount() + " 条没传上去" : "");
+  }
+  function renderCredits() {
+    var box = $("credits-sec"); if (!box) return;
+    var P = window.MP_PHOTOS || {};
+    var names = Object.keys(P);
+    if (!names.length) { box.innerHTML = ""; return; }
+    box.innerHTML = '<details class="credits"><summary>图片来源（' + names.length + ' 张）</summary>' +
+      '<div class="credits-list">' + names.map(function (n) {
+        var c = P[n];
+        return '<div class="credit"><b>' + esc(n) + '</b>：' + esc(c.author || "佚名") + ' · <a href="' + esc(c.page) + '" target="_blank" rel="noopener">维基共享资源</a> · ' +
+          (c.licenseUrl ? '<a href="' + esc(c.licenseUrl) + '" target="_blank" rel="noopener">' + esc(c.license) + "</a>" : esc(c.license)) + (c.modified ? "（已裁剪）" : "") + "</div>";
+      }).join("") + "</div></details>";
   }
   function linkFor(pid) {
     var u = new URL(location.href);

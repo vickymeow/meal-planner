@@ -174,7 +174,17 @@ check("点菜名打开做法（配料 + 步骤）", (await M.locator(".sheet .in
 check("做法页能直接定进晚饭", /定进.*晚饭/.test(await M.locator(".sheet .sheet-cta").innerText()));
 await M.screenshot({ path: `${SHOTS}/04-recipe.png` });
 await M.locator(".sheet .sheet-close").last().click();
-check("没配出图时显示暖色方块（不留破图）", (await M.locator("#menu-list .dish-tile").count()) > 0 && (await M.locator("#menu-list img.dish-photo").count()) === 0);
+await M.locator(".filter-chip", { hasText: "全部" }).click();
+await M.waitForTimeout(300);
+const pork = M.locator(".menu-row", { hasText: "红烧肉" }).locator("img.dish-photo");
+check("自带实拍照片：红烧肉显示照片", (await pork.count()) === 1 && /photos\/braised-pork\.jpg$/.test(await pork.getAttribute("src")));
+const loaded = await M.evaluate(async () => Promise.all(Object.values(window.MP_PHOTOS).map(async (p) => {
+  try { const r = await fetch(p.file); const b = await createImageBitmap(await r.blob()); return r.ok && b.width >= 300; } catch (e) { return false; }
+})));
+check("每张自带照片都能打开", loaded.length >= 20 && loaded.every(Boolean), loaded.filter(Boolean).length + "/" + loaded.length + " 张");
+const brokenNames = await M.evaluate(() => Object.entries(window.MP_PHOTOS).filter(([n, p]) => !p.file || !p.author || !p.license).map(([n]) => n));
+check("每张自带照片都有作者和授权", brokenNames.length === 0, brokenNames.join(","));
+check("没有自带照片、也配不出图的菜显示暖色方块（不留破图）", (await M.locator(".menu-row", { hasText: "红烧带鱼" }).locator(".dish-tile").count()) === 1 || "红烧带鱼" in (await M.evaluate(() => window.MP_PHOTOS)));
 
 // 7. 悬浮话筒：妈妈屏各页都可见
 for (const v of ["today", "menu", "buy", "profile"]) {
@@ -234,6 +244,7 @@ check("界面没有英文混写", eng.length === 0, eng.join(","));
 // 我的：换人、反馈
 await M.click("#nav-profile");
 await M.screenshot({ path: `${SHOTS}/08-profile.png` });
+check("「我的」页有图片来源", /图片来源/.test(await M.locator("#credits-sec").innerText()));
 check("「我的」页有发给家里人的链接", (await M.locator("#share-sec .share-row").count()) === 4);
 await M.locator("#view-profile [data-fb-slot] input").fill("字再大一点");
 await M.locator("#view-profile [data-fb-slot] .sheet-cta").click();

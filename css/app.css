@@ -88,3 +88,9 @@ textarea.add-input { min-height: 110px; resize: vertical; line-height: 1.6; }
 .voice-fab { position: absolute; bottom: calc(100px + env(safe-area-inset-bottom)) !important; }
 .toast { top: calc(14px + env(safe-area-inset-top)); }
 .sheet { max-height: 90%; padding-bottom: calc(30px + env(safe-area-inset-bottom)); }
+
+/* 图片来源 */
+.credits summary { font-size: 15px; font-weight: 800; color: #8a7967; cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.credits-list { font-size: 13px; line-height: 1.6; color: #6f6154; }
+.credit { padding: 5px 0; border-top: 1px solid #f0e6d6; word-break: break-word; }
+.credit a { color: #b84a1f; }
