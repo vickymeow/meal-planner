@@ -51,6 +51,10 @@ async function phone(me) {
   const ctx = await browser.newContext({ ...devices["iPhone 13"], locale: "zh-CN" });
   await ctx.route("**/rest/v1/rpc/**", fakeSupabase);
   await ctx.route("**/image.pollinations.ai/**", (r) => r.abort()); // 测「配不出图」时的暖色方块
+  await ctx.route("**/api.open-meteo.com/**", (r) => { // 假天气，不连外网
+    const time = []; for (let i = 0; i < 8; i++) { const d = new Date(); d.setDate(d.getDate() + i); time.push(d.toISOString().slice(0, 10)); }
+    r.fulfill({ contentType: "application/json", body: JSON.stringify({ daily: { time, weather_code: time.map(() => 1), temperature_2m_max: time.map(() => 18), temperature_2m_min: time.map(() => 9) } }) });
+  });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -82,6 +86,8 @@ await M.locator("#breakfast .bf-row button").click();
 await M.locator(".sheet .pick-card", { hasText: "蒸饺" }).click();
 await M.waitForTimeout(150);
 check("妈妈换好自己的早饭", /蒸饺/.test(await M.locator("#breakfast").innerText()));
+
+check("日期下面有天气", /天气：/.test(await M.locator("#plan-meta").innerText()));
 
 // 3. 妈妈屏谁在家：只显示，不能点；都在家写「都在家吃饭」
 check("都在家时写「都在家吃饭」", /都在家吃饭/.test(await M.locator("#people").innerText()));
