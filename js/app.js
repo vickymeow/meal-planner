@@ -1673,7 +1673,7 @@
       var link = linkFor(p.id);
       var row = el("div", "share-row", avatarHTML(p) + '<span class="sr-name">' + esc(p.name) + "的链接</span>");
       row.appendChild(btn("mini-btn", navigator.share ? "发给" + p.name : "复制", function () {
-        if (navigator.share) { navigator.share({ title: "早饭晚饭", text: p.name + "，用这个打开我们家的早饭晚饭：", url: link }).catch(function () {}); return; }
+        if (navigator.share) { navigator.share({ title: "爱心厨房", text: p.name + "，用这个打开我们家的爱心厨房：", url: link }).catch(function () {}); return; }
         copyText(link).then(function () { toast("复制好了，发给" + p.name); }, function () { window.prompt("复制这个链接", link); });
       }));
       box.appendChild(row);
@@ -2053,7 +2053,7 @@
   }
   function showHomeScreenHelp() {
     sheet.innerHTML = "<h3>先把 App 加到主屏幕</h3>" + '<p class="sheet-sub">iPhone 要从主屏幕打开，才能收通知。</p>' +
-      '<div class="read-panel" style="font-size:18px;line-height:1.8">① 用 Safari 打开这个 App<br>② 点下面中间的「分享」按钮（方块带向上箭头）<br>③ 往下找「添加到主屏幕」，点「添加」<br>④ 回到主屏幕，点「早饭晚饭」打开<br>⑤ 到「我的」→「打开通知」</div>';
+      '<div class="read-panel" style="font-size:18px;line-height:1.8">① 用 Safari 打开这个 App<br>② 点下面中间的「分享」按钮（方块带向上箭头）<br>③ 往下找「添加到主屏幕」，点「添加」<br>④ 回到主屏幕，点「爱心厨房」打开<br>⑤ 到「我的」→「打开通知」</div>';
     sheet.appendChild(closeBtn("知道了"));
     openSheet();
   }
@@ -2073,7 +2073,7 @@
       } else if (st === "need-home") {
         box.appendChild(btn("sheet-cta", "🔔 怎么打开通知", showHomeScreenHelp));
       } else if (st === "denied") {
-        box.appendChild(el("div", "home-sum away", "通知被关掉了。到手机「设置」→「通知」→「早饭晚饭」里打开。"));
+        box.appendChild(el("div", "home-sum away", "通知被关掉了。到手机「设置」→「通知」→「爱心厨房」里打开。"));
       } else if (st === "unsupported") {
         box.appendChild(el("div", "home-sum away", "这部手机或浏览器收不了通知。"));
       } else if (st === "off") {

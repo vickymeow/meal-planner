@@ -5,7 +5,7 @@ self.addEventListener("activate", function (e) { e.waitUntil(self.clients.claim(
 self.addEventListener("push", function (e) {
   var d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(d.title || "早饭晚饭", {
+  e.waitUntil(self.registration.showNotification(d.title || "爱心厨房", {
     body: d.body || "",
     tag: d.tag || undefined,
     renotify: !!d.tag,

@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     if (!r) return json({ skipped: true });
     const to = r.to.filter((p) => p !== log.who);
     const name = NAMES[log.who] || "家里";
-    return json(await sendTo(h, to, { title: "早饭晚饭", body: name + String(log.text || "").slice(0, 120), tag: r.tag }));
+    return json(await sendTo(h, to, { title: "爱心厨房", body: name + String(log.text || "").slice(0, 120), tag: r.tag }));
   }
 
   // 手机来的：要家庭密钥
@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
   if (body.task === "key") return json({ key: (await getVapid()).publicKey });
   if (body.task === "test") {
     const who = String(body.who || "");
-    return json(await sendTo(h, [who], { title: "早饭晚饭", body: "通知打开了 ✓ 以后有事会这样告诉你", tag: "test" }));
+    return json(await sendTo(h, [who], { title: "爱心厨房", body: "通知打开了 ✓ 以后有事会这样告诉你", tag: "test" }));
   }
   return json({ error: "unknown task" }, 400);
 });
