@@ -263,7 +263,7 @@
 
   // ---------- 说话输入 ----------
   var MIC_SVG = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="17" y="4" width="14" height="24" rx="7" fill="#205c43"/><rect x="20.5" y="8" width="3.5" height="10" rx="1.75" fill="#bfe3cf"/><path d="M10 22a14 14 0 0 0 28 0" stroke="#205c43" stroke-width="4.5" stroke-linecap="round"/><path d="M24 36v6M16 44h16" stroke="#205c43" stroke-width="4.5" stroke-linecap="round"/></svg>';
-  function startVoice(input) {
+  function startVoice(input, after) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { toast("点输入框，再点键盘上的话筒说话"); input.focus(); return; }
     try {
@@ -274,6 +274,7 @@
         var txt = ev.results[0][0].transcript.replace(/[。．.！!]$/g, "");
         input.value = txt;
         toast("听到了：「" + txt + "」");
+        if (after) setTimeout(after, 400);
       };
       rec.onerror = function () { toast("没听清，点键盘上的话筒也能说"); input.focus(); };
       rec.start();
@@ -1006,6 +1007,23 @@
     sheet.appendChild(closeBtn("知道了，回去"));
     openSheet();
   }
+  // AI 写配料和做法：填进两个输入框（没有 AI 时，推荐池里有的就用推荐池的）
+  function aiFill(name, meal, ings, steps, button) {
+    name = trim(name);
+    if (!name) { toast("先写菜名"); return; }
+    var old = button.textContent; button.disabled = true; button.textContent = "✨ 正在写…";
+    function fill(r) {
+      ings.value = (r.ings || []).join("\n"); steps.value = (r.steps || []).join("\n");
+      button.disabled = false; button.textContent = old;
+      toast("写好了，看看对不对，可以改");
+    }
+    ai("recipe", { name: name, meal: meal }).then(fill).catch(function (e) {
+      var rec = D.RECOMMENDS.filter(function (r) { return r.name === name; })[0];
+      if (rec) { fill(rec); return; }
+      button.disabled = false; button.textContent = old;
+      toast(e && e.code === "no_key" ? "AI 还没开通，先自己写，或者空着也行" : "AI 现在连不上，先自己写，或者空着也行");
+    });
+  }
   function splitLines(s) { return String(s || "").split(/[\n、，,；;]+/).map(trim).filter(Boolean); }
   function openDishEditor(name) {
     var d = dish(name) || { name: name, meal: "dinner", cat: guessCat(name) };
@@ -1016,6 +1034,8 @@
     sheet.appendChild(el("label", "f", "怎么做"));
     var steps = el("textarea", "add-input"); steps.value = (d.steps || []).join("\n"); steps.setAttribute("aria-label", "做法");
     sheet.appendChild(steps);
+    var aiB = btn("ai-btn", "✨ 让 AI 重新写配料和做法", function () { aiFill(name, d.meal === "breakfast" ? "breakfast" : "dinner", ings, steps, aiB); });
+    sheet.appendChild(aiB);
     sheet.appendChild(el("label", "f", "提前备（可以不写）"));
     var prep = el("input", "add-input"); prep.type = "text"; prep.value = d.prep || ""; prep.placeholder = "比如：鱼当天买新鲜的"; prep.setAttribute("aria-label", "提前备");
     sheet.appendChild(prep);
@@ -1043,12 +1063,14 @@
       tg.appendChild(b);
     });
     sheet.appendChild(tg);
-    sheet.appendChild(el("label", "f", "配料（可以不写，一行一样）"));
+    sheet.appendChild(el("label", "f", "配料（一行一样，可以让 AI 写）"));
     var ings = el("textarea", "add-input"); ings.value = st.ings; ings.placeholder = "排骨 500克\n冬瓜 1 块\n姜"; ings.setAttribute("aria-label", "配料");
     sheet.appendChild(ings);
     sheet.appendChild(el("label", "f", "怎么做（可以不写）"));
     var steps = el("textarea", "add-input"); steps.value = st.steps; steps.setAttribute("aria-label", "做法");
     sheet.appendChild(steps);
+    var aiB = btn("ai-btn", "✨ 让 AI 写配料和做法", function () { aiFill(input.value, st.meal, ings, steps, aiB); });
+    sheet.insertBefore(aiB, sheet.querySelectorAll("label.f")[0]);
     sheet.appendChild(btn("sheet-cta", "下一步：确认", function () {
       var name = trim(input.value);
       if (!name) { toast("先写菜名"); input.focus(); return; }
@@ -1451,90 +1473,181 @@
     });
     return items;
   }
-  function openVoicePlan(note) {
-    sheet.innerHTML = "<h3>说一句，这周怎么安排</h3>" + '<p class="sheet-sub">比如「周二做鱼，周三做鸡腿」。说完先确认。' + (note ? " " + esc(note) : "") + "</p>";
-    var input = el("input", "add-input"); input.type = "text"; input.placeholder = "或者打字：周二做鱼"; input.setAttribute("aria-label", "说话或打字输入这周的安排");
+  // ---------- AI（Qwen Token Plan，经 Supabase 边缘函数 mp-ai） ----------
+  function ai(task, payload) {
+    if (!S.household() || !window.fetch) return Promise.reject(new Error("local"));
+    var ctl = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 25000);
+    return fetch(CFG.supabaseUrl + "/functions/v1/mp-ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: CFG.supabaseKey },
+      body: JSON.stringify(Object.assign({ h: S.household(), task: task }, payload)),
+      signal: ctl ? ctl.signal : undefined
+    }).then(function (r) {
+      clearTimeout(timer);
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) { var e = new Error(j.error || ("HTTP " + r.status)); e.code = j.error; throw e; }
+        return j;
+      });
+    }, function (e) { clearTimeout(timer); throw e; });
+  }
+
+  // ---------- 语音助手：说一句话 → 听懂要办的事 → 确认 → 办 ----------
+  function matchDish(raw, meal) {
+    raw = trim(raw); if (!raw) return raw;
+    var list = menuFor(meal).map(function (d) { return d.name; }), best = null;
+    list.forEach(function (n) { if (raw.indexOf(n) !== -1 && (!best || n.length > best.length)) best = n; });
+    if (!best && raw.length >= 2) list.forEach(function (n) { if (n.indexOf(raw) !== -1 && (!best || n.length < best.length)) best = n; });
+    return best || raw;
+  }
+  function cleanDish(x) {
+    return trim(String(x || "").replace(/^(我|也|还|再|就|要|想|都|是)+/, "").replace(/^(吃|做|来个|来一个|来点|弄个|买)+/, "").replace(/(吧|啊|呀|哦|了|啦|呢)+$/, ""));
+  }
+  // 没有 AI 时：本地规则听懂常见说法
+  function localIntent(text) {
+    var out = [], dw = dayWords();
+    String(text).split(/[，,。；;！!？?\n]+|然后|另外/).map(trim).filter(Boolean).forEach(function (seg) {
+      var ds = [];
+      dw.forEach(function (x) { if (x.words.some(function (w) { return seg.indexOf(w) !== -1; })) ds.push(x.id); });
+      if (/周末/.test(seg)) days().forEach(function (id) { var g = fromIso(id).getDay(); if ((g === 0 || g === 6) && ds.indexOf(id) === -1) ds.push(id); });
+      if (/这几天|这周|这一周|每天/.test(seg) && !ds.length) ds = days().slice();
+      var when = ds.length ? ds : [tomorrowIso()];
+      if (/不在家|不回来|不回家|在外面吃|外面吃|出去吃/.test(seg)) { when.forEach(function (id) { out.push({ type: "home", date: id, on: false }); }); return; }
+      if (/不吃早饭|不吃早餐/.test(seg)) {
+        if (ds.length) ds.forEach(function (id) { out.push({ type: "breakfast", date: id, dish: D.BF_SKIP }); });
+        else out.push({ type: "bf_switch", on: false });
+        return;
+      }
+      if (/要吃早饭|吃早饭了|开始吃早饭/.test(seg) && !ds.length) { out.push({ type: "bf_switch", on: true }); return; }
+      if (/早饭|早餐/.test(seg)) {
+        var bd = cleanDish(seg.replace(/.*?(早饭|早餐)/, ""));
+        if (bd) when.forEach(function (id) { out.push({ type: "breakfast", date: id, dish: matchDish(bd, "breakfast") }); });
+        return;
+      }
+      var buy = seg.match(/(?:要买|去买|买)(.+)/);
+      if (buy) { buy[1].split(/[和跟、]|还有/).map(cleanDish).filter(Boolean).forEach(function (n) { out.push({ type: "buy", dish: n, qty: "" }); }); return; }
+      if (/在家|回家吃|回来吃/.test(seg)) { when.forEach(function (id) { out.push({ type: "home", date: id, on: true }); }); return; }
+      if (isMom() && ds.length) {
+        vpParse(seg).forEach(function (it) { out.push({ type: "dinner", date: it.dayId, dish: it.name || it.raw }); });
+        return;
+      }
+      var lv = /超想|特别想|太想|馋死/.test(seg) ? 3 : /很想|好想/.test(seg) ? 2 : 2;
+      var wd = cleanDish(seg.replace(/.*?(想吃|要吃|馋|想要|做个|做)/, "").replace(/(超|很|好|特别|太)$/, ""));
+      if (wd && /想吃|要吃|馋|想要|做/.test(seg)) wd.split(/[和跟、]|还有/).map(cleanDish).filter(Boolean).forEach(function (n) { out.push({ type: "wish", dish: matchDish(n, "dinner"), level: lv }); });
+    });
+    return out;
+  }
+  function normAction(a) {
+    if (!a || !a.type) return null;
+    var needDate = { home: 1, dinner: 1, breakfast: 1 };
+    if (needDate[a.type] && days().indexOf(a.date) === -1) return null;
+    var dish = trim(a.dish || "");
+    if ((a.type === "wish" || a.type === "dinner" || a.type === "breakfast" || a.type === "buy") && !dish) return null;
+    if (a.type === "dinner" && !isMom()) return { type: "wish", dish: dish, level: 2 };
+    return { type: a.type, date: a.date || "", dish: dish, on: a.on !== false, level: a.level || 2, qty: trim(a.qty || "") };
+  }
+  function actionText(a) {
+    switch (a.type) {
+      case "home": return "🏠 " + dayName(a.date) + (a.on ? "在家吃饭" : "不在家吃饭");
+      case "wish": return craveOf(a.level).emoji + " 想吃「" + a.dish + "」";
+      case "dinner": return "🍲 " + dayName(a.date) + "晚饭做「" + a.dish + "」";
+      case "breakfast": return "🥣 " + dayName(a.date) + "早饭" + (a.dish === D.BF_SKIP ? "不吃" : "吃「" + a.dish + "」");
+      case "buy": return "🛒 买菜清单加「" + a.dish + "」" + (a.qty ? " " + a.qty : "");
+      case "bf_switch": return a.on ? "🥣 以后要吃早饭" : "🥣 以后不吃早饭";
+    }
+    return "";
+  }
+  var ASSIST_EX = {
+    mom: ["周二做红烧肉，周三做鱼", "明天晚饭做番茄炒蛋和青菜汤", "要买牛奶和鸡蛋"],
+    family: ["我明天不在家吃饭", "我超想吃小酥肉", "周三早饭吃馄饨", "这周末不在家"]
+  };
+  function openAssistant(prefill, note) {
+    sheet.innerHTML = "<h3>🎤 语音助手</h3>" + '<p class="sheet-sub">说一句话，我帮你办。先给你看一眼，对了才算。' + (note ? " " + esc(note) : "") + "</p>";
+    var input = el("textarea", "add-input assist-input"); input.rows = 2; input.value = prefill || "";
+    input.placeholder = "比如：" + ASSIST_EX[isMom() ? "mom" : "family"][0];
+    input.setAttribute("aria-label", "说话或打字");
     var mic = el("button", "vp-mic", MIC_SVG + "<span>点这里，说话</span>"); mic.type = "button";
-    mic.addEventListener("click", function () { startVoice(input); });
-    sheet.appendChild(mic); sheet.appendChild(input);
-    sheet.appendChild(btn("sheet-cta", "说完了 · 给我确认", function () {
+    mic.addEventListener("click", function () { startVoice(input, function () { go(); }); });
+    sheet.appendChild(mic);
+    sheet.appendChild(input);
+    sheet.appendChild(el("div", "assist-hint", "说话没反应？点上面的输入框，再点键盘上的 🎤 说就行。"));
+    var ex = el("div", "thanks-row");
+    ASSIST_EX[isMom() ? "mom" : "family"].forEach(function (t) { ex.appendChild(btn("thanks-chip", t, function () { input.value = t; })); });
+    sheet.appendChild(el("h4", null, "可以这样说："));
+    sheet.appendChild(ex);
+    function go() {
       var text = trim(input.value);
-      if (!text) { toast("先说话或打字"); input.focus(); return; }
-      var items = vpParse(text);
-      if (!items.length) { toast("没听出是哪天，再说一次，比如「周二做鱼」"); return; }
-      voiceItems = items; renderVoiceConfirm();
-    }));
-    sheet.appendChild(closeBtn("不说了"));
+      if (!text) { toast("先说一句，或者打字"); input.focus(); return; }
+      runAssistant(text);
+    }
+    sheet.appendChild(btn("sheet-cta", "好了，帮我办", go));
+    sheet.appendChild(closeBtn("不用了"));
     openSheet();
   }
-  function renderVoiceConfirm() {
-    sheet.innerHTML = "<h3>听懂的是这样，对吗？</h3>" + '<p class="sheet-sub">都对了，点下面大按钮。</p>';
-    voiceItems.forEach(function (it, idx) {
-      var d = dayInfo(it.dayId);
-      var card = el("div", "vp-item" + (it.status === "choose" ? " need" : ""), '<div class="vp-day">' + d.short + " " + d.num + "日" + (d.rel ? "（" + d.rel + "）" : "") + " · 晚饭</div>");
-      if (it.status === "choose") {
-        card.appendChild(el("div", "vp-dish", esc(it.raw)));
-        card.appendChild(el("div", "vp-note", esc(it.why)));
-        var cands = el("div", "vp-cands");
-        it.candidates.forEach(function (c) { cands.appendChild(btn("vp-cand", c, function () { it.name = c; it.status = "ok"; renderVoiceConfirm(); }, d.short + "晚饭就定" + c)); });
-        var nb = btn("vp-cand", "就按「" + it.raw + "」排", function () { it.name = it.raw; it.status = "new"; renderVoiceConfirm(); });
-        nb.style.cssText = "border-color:#d99a2b;background:#fdf1e3;color:#8a5a00";
-        cands.appendChild(nb);
-        card.appendChild(cands);
-      } else {
-        card.appendChild(el("div", "vp-dish", esc(it.name)));
-        if (it.status === "new") card.appendChild(el("div", "vp-note", "菜谱里还没有，会自动加进去"));
-      }
+  function runAssistant(text) {
+    sheet.innerHTML = "<h3>🎤 正在听懂…</h3>" + '<p class="sheet-sub">「' + esc(text) + "」</p>";
+    var done = false;
+    function show(list, reply) { if (done) return; done = true; showAssistActions(list, reply, text); }
+    ai("intent", {
+      text: text,
+      me: pname(ui.me) + (isMom() ? "（妈妈，做饭的人）" : ""),
+      days: days().map(function (id) { var d = dayInfo(id); return id + " " + (d.rel ? d.rel + " " : "") + d.weekday; }),
+      breakfast: menuFor("breakfast").map(function (d) { return d.name; }),
+      dinner: menuFor("dinner").map(function (d) { return d.name; })
+    }).then(function (r) {
+      var list = (r.actions || []).map(normAction).filter(Boolean);
+      if (!list.length) list = localIntent(text).map(normAction).filter(Boolean);
+      show(list, r.reply || "");
+    }).catch(function () { show(localIntent(text).map(normAction).filter(Boolean), ""); });
+  }
+  function showAssistActions(list, reply, text) {
+    sheet.innerHTML = "<h3>" + (list.length ? "听懂的是这样，对吗？" : "没听懂，再说一次吧") + "</h3>" +
+      '<p class="sheet-sub">「' + esc(text) + "」" + (reply ? "<br>" + esc(reply) : "") + "</p>";
+    list.forEach(function (a, i) {
+      var card = el("div", "vp-item", '<div class="vp-dish" style="font-size:21px">' + esc(actionText(a)) + "</div>");
       var acts = el("div", "vp-acts");
-      acts.appendChild(btn("mini-btn", "换一道", function () { renderVoicePick(idx); }));
-      acts.appendChild(btn("mini-btn danger", "这条不要", function () {
-        voiceItems.splice(idx, 1);
-        if (!voiceItems.length) openVoicePlan("刚才的都不要了，再说一句。"); else renderVoiceConfirm();
-      }));
+      acts.appendChild(btn("mini-btn danger", "这条不要", function () { list.splice(i, 1); showAssistActions(list, reply, text); }));
       card.appendChild(acts);
       sheet.appendChild(card);
     });
-    var pending = voiceItems.some(function (it) { return it.status === "choose"; });
-    var yes = btn("sheet-cta", pending ? "先挑完上面黄框的" : "✓ 对，就这样", function () {
-      if (pending) { toast("黄框的还没挑"); return; }
-      applyVoice();
-    });
-    yes.style.background = "#2e7d5b";
-    sheet.appendChild(yes);
-    sheet.appendChild(btn("sheet-close", "不对，我重新说", function () { openVoicePlan(); }));
-    sheet.appendChild(closeBtn("先不排了"));
+    if (list.length) {
+      var yes = btn("sheet-cta", "✓ 对，就这样", function () { applyActions(list); });
+      yes.style.background = "#2e7d5b";
+      sheet.appendChild(yes);
+    }
+    sheet.appendChild(btn("sheet-close", "不对，我重新说", function () { openAssistant(text); }));
+    sheet.appendChild(closeBtn("先不办了"));
     sheet.scrollTop = 0;
   }
-  function renderVoicePick(idx) {
-    var it = voiceItems[idx], d = dayInfo(it.dayId);
-    sheet.innerHTML = "<h3>" + d.short + "晚饭换成哪道？</h3>";
-    var g = el("div", "pick-grid");
-    menuFor("dinner").forEach(function (dd) { g.appendChild(pickCard(dd.name, null, function () { it.name = dd.name; it.status = "ok"; renderVoiceConfirm(); })); });
-    sheet.appendChild(g);
-    sheet.appendChild(btn("sheet-close", "← 不换了", renderVoiceConfirm));
-    sheet.scrollTop = 0;
-  }
-  function applyVoice() {
-    var ops = [], parts = [], byDay = {};
-    voiceItems.forEach(function (it) {
-      if (!dish(it.name)) {
-        var rec = D.RECOMMENDS.filter(function (r) { return r.name === it.name; })[0];
-        ops.push({ id: "dish:" + it.name, data: rec
-          ? { name: rec.name, meal: "dinner", cat: rec.cat, ings: rec.ings, steps: rec.steps, prep: rec.prep, order: newOrder() }
-          : { name: it.name, meal: "dinner", cat: guessCat(it.name), ings: [], steps: [], order: newOrder() } });
+  function applyActions(list) {
+    var ops = [], dinners = {}, done = [];
+    list.forEach(function (a) {
+      if (a.type === "home") { ops.push({ id: "home:" + a.date + ":" + ui.me, data: { v: a.on } }); log(dayName(a.date) + (a.on ? "在家吃饭" : "不在家吃饭")); }
+      else if (a.type === "bf_switch") { ops.push({ id: "bfoff:" + ui.me, data: { v: !a.on } }); log(a.on ? "要吃早饭了" : "不吃早饭了"); }
+      else if (a.type === "breakfast") {
+        if (a.dish !== D.BF_SKIP && a.dish !== D.BF_ANY && !dish(a.dish)) ops.push({ id: "dish:" + a.dish, data: { name: a.dish, meal: "breakfast", cat: guessCat(a.dish), ings: [], steps: [], order: newOrder() } });
+        ops.push({ id: "bf:" + a.date + ":" + ui.me, data: { dish: a.dish } }); log("定了" + dayName(a.date) + "早饭：" + a.dish);
+      } else if (a.type === "dinner") {
+        if (!dish(a.dish)) {
+          var rec = D.RECOMMENDS.filter(function (r) { return r.name === a.dish; })[0];
+          ops.push({ id: "dish:" + a.dish, data: rec ? { name: rec.name, meal: "dinner", cat: rec.cat, ings: rec.ings, steps: rec.steps, prep: rec.prep, order: newOrder() } : { name: a.dish, meal: "dinner", cat: guessCat(a.dish), ings: [], steps: [], order: newOrder() } });
+        }
+        if (!dinners[a.date]) dinners[a.date] = dinner(a.date).slice();
+        if (dinners[a.date].indexOf(a.dish) === -1) dinners[a.date].push(a.dish);
+        log("说话定了" + dayName(a.date) + "晚饭：" + a.dish);
       }
-      if (!byDay[it.dayId]) byDay[it.dayId] = dinner(it.dayId).slice();
-      if (byDay[it.dayId].indexOf(it.name) === -1) byDay[it.dayId].push(it.name);
-      parts.push(dayName(it.dayId) + "：" + it.name);
+      done.push(actionText(a));
     });
-    Object.keys(byDay).forEach(function (id) { ops.push({ id: "dinner:" + id, data: { dishes: byDay[id] } }); });
-    S.putMany(ops);
-    voiceItems.forEach(function (it) { log("说话定了" + dayName(it.dayId) + "晚饭：" + it.name); });
-    voiceItems = null;
+    Object.keys(dinners).forEach(function (id) { ops.push({ id: "dinner:" + id, data: { dishes: dinners[id] } }); });
+    if (ops.length) S.putMany(ops);
+    list.forEach(function (a) {
+      if (a.type === "wish") { if (!dish(a.dish)) newDish(a.dish, "dinner", guessCat(a.dish), [], [], true); addWish(a.dish, a.level, THANKS[0]); }
+      if (a.type === "buy") addCustom(a.dish, a.qty);
+    });
     closeSheet();
-    toast("排好了！" + parts.join("；"));
+    toast("办好了！" + done.join("；"));
   }
-  $("voice-fab").addEventListener("click", function () { openVoicePlan(); });
+  $("voice-fab").addEventListener("click", function () { openAssistant(); });
 
   // =====================================================================
   //  导航 / 谁的手机 / 同步状态
@@ -1570,7 +1683,7 @@
     S.setWho(pid);
     keepUrl();
     $("welcome").hidden = true;
-    $("voice-fab").hidden = !isMom();
+    $("voice-fab").hidden = false;
     showView("today");
     renderAll();
   }
@@ -1644,7 +1757,7 @@
     var ready = S.init({ household: h, who: me || "" });
     keepUrl();
     if (!me) showWelcome();
-    else { $("voice-fab").hidden = !isMom(); showView("today"); renderAll(); }
+    else { $("voice-fab").hidden = false; showView("today"); renderAll(); }
     ready.then(function () { maybeSeed(); if (S.status() === "ok" && isMom()) pruneLogs(); queueRender(); });
     loadWeather();
     // 过了半夜，日子要往后挪

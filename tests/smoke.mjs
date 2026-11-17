@@ -51,6 +51,18 @@ async function phone(me) {
   const ctx = await browser.newContext({ ...devices["iPhone 13"], locale: "zh-CN" });
   await ctx.route("**/rest/v1/rpc/**", fakeSupabase);
   await ctx.route("**/image.pollinations.ai/**", (r) => r.abort()); // 测「配不出图」时的暖色方块
+  // 假的 AI：句子里带「AI测试」时假装 Qwen 听懂了；其他时候假装还没开通（走本地规则）
+  await ctx.route("**/functions/v1/mp-ai", (r) => {
+    const b = JSON.parse(r.request().postData() || "{}");
+    if (b.task === "intent" && /AI测试/.test(b.text || "")) {
+      const day = (b.days || [])[3].split(" ")[0];
+      return r.fulfill({ contentType: "application/json", body: JSON.stringify({ reply: "周几不在家，想吃卤牛肉", actions: [
+        { type: "home", date: day, dish: "", on: false, level: 2, qty: "" },
+        { type: "wish", date: "", dish: "卤牛肉", on: true, level: 3, qty: "" } ] }) });
+    }
+    if (b.task === "recipe" && b.name === "酸汤肥牛") return r.fulfill({ contentType: "application/json", body: JSON.stringify({ cat: "meat", ings: ["肥牛卷 400克", "金针菇 1 把", "黄灯笼辣椒酱"], steps: ["金针菇焯水铺碗底。", "酸汤烧开下肥牛。", "浇在金针菇上。"], prep: "" }) });
+    return r.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "no_key" }) });
+  });
   await ctx.route("**/api.open-meteo.com/**", (r) => { // 假天气，不连外网
     const time = []; for (let i = 0; i < 8; i++) { const d = new Date(); d.setDate(d.getDate() + i); time.push(d.toISOString().slice(0, 10)); }
     r.fulfill({ contentType: "application/json", body: JSON.stringify({ daily: { time, weather_code: time.map(() => 1), temperature_2m_max: time.map(() => 18), temperature_2m_min: time.map(() => 9) } }) });
@@ -58,7 +70,7 @@ async function phone(me) {
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  page.on("console", (m) => { if (m.type() === "error" && !/pollinations|net::ERR_FAILED/.test(m.text())) errors.push(m.text()); });
+  page.on("console", (m) => { if (m.type() === "error" && !/pollinations|net::ERR_FAILED|status of 503/.test(m.text())) errors.push(m.text()); });
   await page.goto(`${BASE}/?h=${H}&me=${me}`);
   await page.waitForTimeout(600);
   return { page, errors, ctx };
@@ -218,9 +230,9 @@ check("没有自带照片、也配不出图的菜显示暖色方块（不留破�
 // 7. 悬浮话筒：妈妈屏各页都可见
 for (const v of ["today", "menu", "buy", "profile"]) {
   await M.click("#nav-" + v);
-  check("悬浮话筒在妈妈屏「" + v + "」页可见", await M.locator("#voice-fab").isVisible());
+  check("语音助手在妈妈屏「" + v + "」页可见", await M.locator("#voice-fab").isVisible());
 }
-check("家里人屏没有悬浮话筒", !(await C.locator("#voice-fab").isVisible()));
+check("家里人屏也有语音助手", await C.locator("#voice-fab").isVisible() && /语音助手/.test(await C.locator("#voice-fab").innerText()));
 
 // 6. 买菜：「自己加的」默认折起；Weee 按钮 44px、16.5px、橙色
 await M.click("#nav-buy");
@@ -259,11 +271,12 @@ check("妈妈屏只有一个「家里动态」", (await M.locator("#view-today .
 const order = await M.evaluate(() => { const secs = [...document.querySelectorAll("#view-today .sec")]; return secs.findIndex((s) => s.classList.contains("activity-sec")) >= secs.length - 2; });
 check("「家里动态」在页面最下面", order);
 
-// 悬浮话筒：语音定计划（打字代替说话）→ 确认页 → 写入
+// 语音助手（妈妈）：AI 没开通时用本地规则听懂 → 确认页 → 写入
 await M.click("#voice-fab", { force: true }); // 按钮有呼吸动画
 const wd = await M.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 2); return ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][d.getDay()]; });
-await M.fill(".sheet input.add-input", wd + "做鱼，后天还要蒸水蛋");
+await M.fill(".sheet .assist-input", wd + "做鱼，后天还要蒸水蛋");
 await M.locator(".sheet .sheet-cta").click();
+await M.waitForSelector(".sheet .vp-item");
 check("说话后先弹确认页", /对吗/.test(await M.locator(".sheet h3").innerText()));
 check("「做鱼」直接对上妈妈菜谱里的「鱼」", /鱼/.test(await M.locator(".sheet .vp-item").first().innerText()));
 await M.screenshot({ path: `${SHOTS}/07-voice-confirm.png` });
@@ -271,6 +284,33 @@ await M.locator(".sheet .sheet-cta").click();
 await M.locator(".day-chip").nth(2).click();
 const d2 = await M.locator("#dinner-plan").innerText();
 check("确认后排进那天的晚饭", /鱼/.test(d2) && /蒸水蛋/.test(d2), d2.replace(/\n/g, " "));
+
+// 语音助手（家里人）：本地规则听懂好几件事
+await C.click("#voice-fab", { force: true });
+await C.fill(".sheet .assist-input", "我明天不在家吃饭，超想吃红烧带鱼，还要买酱油");
+await C.locator(".sheet .sheet-cta").click();
+await C.waitForSelector(".sheet .vp-item");
+const acts = await C.locator(".sheet .vp-item").allInnerTexts();
+check("家里人说一句话听懂 3 件事（不在家 / 想吃 / 买菜）", acts.length === 3 && /明天不在家/.test(acts[0]) && /红烧带鱼/.test(acts[1]) && /酱油/.test(acts[2]), acts.join(" | "));
+await C.screenshot({ path: `${SHOTS}/10-assistant.png` });
+await C.locator(".sheet .sheet-cta").click();
+await C.waitForTimeout(200);
+check("确认后都办好了", /不在家/.test(await C.locator("#fam-home .home-day").nth(1).innerText()) && /红烧带鱼/.test(await C.locator("#fam-wishes").innerText()));
+// 语音助手走 AI（假 Qwen）
+await C.click("#voice-fab", { force: true });
+await C.fill(".sheet .assist-input", "AI测试 那天不回来吃，想吃卤牛肉");
+await C.locator(".sheet .sheet-cta").click();
+await C.waitForSelector(".sheet .vp-item");
+check("AI 听懂的结果也先给人确认", (await C.locator(".sheet .vp-item").count()) === 2 && /卤牛肉/.test(await C.locator(".sheet").innerText()));
+await C.locator(".sheet .sheet-close").last().click();
+// 加新菜：AI 写配料和做法
+await C.click("#nav-menu");
+await C.click("#menu-add-btn");
+await C.fill(".sheet input.add-input", "酸汤肥牛");
+await C.locator(".sheet .ai-btn").click();
+await C.waitForTimeout(300);
+check("加新菜：AI 写好配料和做法", /肥牛卷 400克/.test(await C.locator(".sheet textarea").first().inputValue()) && /酸汤/.test(await C.locator(".sheet textarea").nth(1).inputValue()));
+await C.locator(".sheet .sheet-close").last().click();
 
 // 9. 全中文；没有中英文混写（菜名、人名 Vicky 和品牌名 Weee 除外）
 const visible = await M.locator("body").innerText();
@@ -316,7 +356,9 @@ check("点菜时有感谢的话可以选", (await C.locator(".sheet .thanks-chip
 await C.locator(".sheet .thanks-chip", { hasText: "妈妈辛苦啦" }).click();
 await C.locator(".sheet .crave-btn.lv2").click();
 await C.waitForTimeout(200);
-check("想吃的菜排在菜谱最上面", /小酥肉/.test(await C.locator("#menu-list .menu-row").first().innerText()));
+const wantedRows = await C.locator("#menu-list .menu-row.wanted .mn-name").allInnerTexts();
+const firstRows = await C.locator("#menu-list .menu-row .mn-name").allInnerTexts();
+check("想吃的菜排在菜谱最上面（越想吃越靠上）", wantedRows.some((t) => /小酥肉/.test(t)) && firstRows.slice(0, wantedRows.length).join("|") === wantedRows.join("|") && /超想吃|❤️/.test(wantedRows[0]), wantedRows.join(" | ").replace(/\n/g, " "));
 check("想吃带着那句感谢的话", /妈妈辛苦啦/.test(await C.locator("#fam-wishes").innerText()));
 // 加新菜：排在上面，加完问想不想吃
 await C.click("#menu-add-btn");
@@ -327,7 +369,8 @@ check("加完新菜问「你想吃吗」", /你想吃吗/.test(await C.locator("
 await C.locator(".sheet .sheet-close").first().click();
 await C.waitForTimeout(200);
 const rowsNow = await C.locator("#menu-list .menu-row .mn-name").allInnerTexts();
-check("新加的菜排在上面（想吃的之后）", /小酥肉/.test(rowsNow[0]) && /酸菜鱼/.test(rowsNow[1]), rowsNow.slice(0, 3).join(" | ").replace(/\n/g, " "));
+const nWanted = await C.locator("#menu-list .menu-row.wanted").count();
+check("新加的菜排在上面（想吃的之后）", /酸菜鱼/.test(rowsNow[nWanted]), rowsNow.slice(0, nWanted + 1).join(" | ").replace(/\n/g, " "));
 await C.screenshot({ path: `${SHOTS}/09-menu-family.png` });
 
 check("妈妈手机没有脚本报错", mom.errors.length === 0, mom.errors.join(" | "));
