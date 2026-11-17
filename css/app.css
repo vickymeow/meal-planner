@@ -141,3 +141,11 @@ textarea.add-input { min-height: 110px; resize: vertical; line-height: 1.6; }
 /* 在不在家：一行小结 */
 .home-sum { font-size: 18px; font-weight: 800; color: #2e7d5b; background: #eef6ee; border: 1.5px solid #cfe3c6; border-radius: 14px; padding: 12px 14px; }
 .home-sum.away { color: #b03a17; background: #fdeee6; border-color: #f3b08a; }
+.m-count { font-size: 24px; color: #c2451e; }
+
+/* 家里人版和妈妈版统一：页签在最上面，选中是同样的绿色大按钮 */
+.screen .tab-switch { width: 100%; margin-bottom: 14px; gap: 8px; }
+.screen .tab-switch button { min-height: 56px; font-size: 19px; border-radius: 16px; }
+.screen .tab-switch button small { font-size: 12.5px; }
+.tab-switch button.on { background: linear-gradient(135deg,#3a8a68,#2e7d5b) !important; border-color: #2e7d5b !important; color: #fff !important; box-shadow: 0 10px 22px rgba(46,125,91,.26), inset 0 1px 0 rgba(255,255,255,.25) !important; }
+.tab-switch button.on small { color: rgba(255,255,255,.85); }

@@ -535,15 +535,24 @@
     var bfCard = el("div", "m-card", '<div class="plan-meal">早饭 · 热一下就行</div>');
     var bfs = bfList(id).filter(function (it) { return it.kind !== "skip"; });
     if (!bfs.length) bfCard.appendChild(el("div", "m-empty", "今天不用做早饭。"));
+    // 一样的早饭合并成一张：写上谁要吃，几份
+    var groups = [], byName = {};
     bfs.forEach(function (it) {
-      var key = "bf:" + it.person, done = !!S.get("done:" + id + ":" + key);
       var name = it.kind === "any" ? "随便" : it.name;
+      if (!byName[name]) { byName[name] = { name: name, kind: it.kind, people: [], fallback: [] }; groups.push(byName[name]); }
+      byName[name].people.push(it.person);
+      if (it.kind === "fallback") byName[name].fallback.push(it.person);
+    });
+    groups.forEach(function (g) {
+      var key = "bf:" + g.name, done = !!S.get("done:" + id + ":" + key);
+      var who = g.people.map(pname).join("、");
+      var note = g.kind === "any" ? " · 妈妈看着做" : g.fallback.length === g.people.length ? " · 没点，默认做这个" : g.fallback.length ? " · " + g.fallback.map(pname).join("、") + "没点，默认" : "";
       var wrap = el("div", "m-dish" + (done ? " done" : ""),
-        (it.kind === "any" ? '<div class="dish-tile hero" aria-hidden="true">随</div>' : dishMedia(it.name, "hero")) +
-        '<div class="m-name">' + esc(name) + "</div>" +
-        '<div class="m-serves">' + esc(pname(it.person)) + "的" + (it.kind === "fallback" ? " · 没点，默认做这个" : it.kind === "any" ? " · 妈妈看着做" : "") + "</div>");
-      if (it.kind !== "any") dishClickRow(wrap, it.name);
-      wrap.appendChild(btn("done-btn", done ? "✓ 热好了" : "热好了", function () { if (!done) finishDish(id, key, it.name); }));
+        (g.kind === "any" ? '<div class="dish-tile hero" aria-hidden="true">随</div>' : dishMedia(g.name, "hero")) +
+        '<div class="m-name">' + esc(g.name) + (g.people.length > 1 ? '<span class="m-count"> × ' + g.people.length + " 份</span>" : "") + "</div>" +
+        '<div class="m-serves">' + esc(who) + "要吃" + esc(note) + "</div>");
+      if (g.kind !== "any") dishClickRow(wrap, g.name);
+      wrap.appendChild(btn("done-btn", done ? "✓ 热好了" : "热好了", function () { if (!done) finishDish(id, key, g.name); }));
       bfCard.appendChild(wrap);
     });
     box.appendChild(bfCard);
@@ -567,7 +576,9 @@
   }
   function todayScript() {
     var id = todayIso();
-    var bf = bfList(id).filter(function (it) { return it.kind !== "skip"; }).map(function (it) { return pname(it.person) + "吃" + it.name; }).join("，");
+    var g = {}, order = [];
+    bfList(id).filter(function (it) { return it.kind !== "skip"; }).forEach(function (it) { var n = it.kind === "any" ? "随便" : it.name; if (!g[n]) { g[n] = []; order.push(n); } g[n].push(pname(it.person)); });
+    var bf = order.map(function (n) { return n + (g[n].length > 1 ? g[n].length + "份" : "") + "，" + g[n].join("、") + "吃"; }).join("；");
     var dn = dinner(id);
     return "今天在家吃饭的有" + homePeople(id).map(function (p) { return p.name; }).join("、") + "，一共 " + totalPeople(id) + " 个人" +
       (guestCount(id) ? "，其中客人 " + guestCount(id) + " 位" : "") + "。\n早饭，加热就行：" + (bf || "不用做") + "。\n晚饭：" + (dn.length ? dn.join("、") : "还没定") + "。";
@@ -609,8 +620,9 @@
     if (isMom()) return;
     var me = ui.me, t = dayInfo(todayIso());
     if (days().indexOf(ui.famDay) === -1) ui.famDay = todayIso();
-    $("fam-when").textContent = pname(me) + "的这屏";
+    $("fam-when").textContent = ui.famTab === "order" ? "我的安排" : "本周菜单";
     $("fam-date").textContent = "今天 " + t.md + " " + t.weekday;
+    $("fam-meta").innerHTML = dayMetaHTML(todayIso());
     // 1 · 这几天在不在家：默认都在家，不在家时再展开选
     var hb = $("fam-home"); hb.innerHTML = "";
     var awayDays = days().filter(function (id) { return !isHome(id, me); });
@@ -778,12 +790,15 @@
     $("family-today").hidden = which === "order";
     $("dtab-order").classList.toggle("on", which === "order");
     $("dtab-menu").classList.toggle("on", which !== "order");
+    $("fam-when").textContent = which === "order" ? "我的安排" : "本周菜单";
+    $("dtab-order").setAttribute("aria-selected", String(which === "order"));
+    $("dtab-menu").setAttribute("aria-selected", String(which !== "order"));
   }
   $("dtab-order").addEventListener("click", function () { showFamTab("order"); });
   $("dtab-menu").addEventListener("click", function () { showFamTab("menu"); });
   $("fam-order-btn").addEventListener("click", openOrderSheet);
 
-  // 今日菜单 = 妈妈做什么：默认今天，可以点别的日子；晚饭一起吃全显示，早饭只显示自己的（别人的折起来）
+  // 本周菜单 = 妈妈做什么：默认今天，可以点别的日子；晚饭一起吃全显示，早饭只显示自己的（别人的折起来）
   function renderFamilyToday() {
     if (days().indexOf(ui.famDay) === -1) ui.famDay = todayIso();
     var id = ui.famDay, di = dayInfo(id);

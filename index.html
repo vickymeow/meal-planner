@@ -78,22 +78,23 @@
       <!-- ============ 家里人屏（Vicky / 小陈 / 爸爸） ============ -->
       <section class="view" id="view-family" aria-label="我的这屏" hidden>
         <div class="screen-scroll">
+          <div class="switch tab-switch" id="fam-switch" role="tablist" aria-label="我的安排还是本周菜单">
+            <button id="dtab-order" class="on" type="button" role="tab">📝 我的安排<small>在家 · 早饭 · 想吃</small></button>
+            <button id="dtab-menu" type="button" role="tab">🍲 本周菜单<small>妈妈做什么</small></button>
+          </div>
           <div class="day-head">
-            <div class="day-when" id="fam-when">我的这屏</div>
-            <div class="day-date" id="fam-date" style="font-size:27px"></div>
-                      </div>
-          <div class="switch dtab-bar" role="tablist" aria-label="页签">
-            <button id="dtab-order" class="on" type="button" role="tab">我的安排<small>在家 · 早饭 · 想吃</small></button>
-            <button id="dtab-menu" type="button" role="tab">今日菜单<small>妈妈做什么</small></button>
+            <div class="day-when" id="fam-when">我的安排</div>
+            <div class="day-date" id="fam-date"></div>
+            <div class="day-meta" id="fam-meta"></div>
           </div>
 
           <div id="family-main">
             <div class="sec">
-              <h2 class="sec-title">1 · 我这几天在家吃饭吗</h2>
+              <h2 class="sec-title">这几天在家吃饭吗 <span class="hint">不在家再点开</span></h2>
               <div id="fam-home"></div>
             </div>
             <div class="sec">
-              <h2 class="sec-title">2 · 我的早饭
+              <h2 class="sec-title">我的早饭 <span class="hint">自己定，妈妈热</span>
                 <button type="button" class="custom-toggle" id="fam-bf-toggle" aria-expanded="false" aria-controls="fam-bf-body">展开 ▼</button>
               </h2>
               <div id="fam-bf-switch"></div>
@@ -102,12 +103,12 @@
               </div>
             </div>
             <div class="sec">
-              <h2 class="sec-title">3 · 我想吃什么</h2>
+              <h2 class="sec-title">我想吃什么 <span class="hint">妈妈能看到</span></h2>
               <button class="order-big primary" id="fam-order-btn" type="button">🍽 我想吃这个<small>挑一道，再选有多想吃</small></button>
               <div id="fam-wishes" style="margin-top:12px"></div>
             </div>
             <div class="sec">
-              <h2 class="sec-title">4 · 有客人来 <span class="guest-summary" id="guest-summary" hidden></span></h2>
+              <h2 class="sec-title">有客人来 <span class="hint">平时折起来</span> <span class="guest-summary" id="guest-summary" hidden></span></h2>
               <button class="guest-fold-btn" id="guest-fold-btn" type="button" aria-expanded="false" aria-controls="guest-body"></button>
               <div class="guest-collapsed-note" id="guest-collapsed-note" hidden></div>
               <div id="guest-body" hidden>
@@ -127,7 +128,7 @@
 
           <div id="family-today" hidden>
             <div class="sec">
-              <h2 class="sec-title">妈妈做什么 <span class="hint">默认今天，点别的日子看</span></h2>
+              <h2 class="sec-title">妈妈做什么 <span class="hint">先点哪天</span></h2>
               <div class="day-strip" id="fam-day-strip" role="tablist" aria-label="选日子"></div>
               <div id="fam-today-menu"></div>
             </div>

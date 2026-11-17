@@ -111,7 +111,7 @@ check("妈妈屏谁在家没有按钮", (await M.locator("#people button").count
 check("没有写「4人吃饭」", !/4\s*人吃饭/.test(await M.locator("#people").innerText()));
 await M.screenshot({ path: `${SHOTS}/01-mom-plan.png` });
 
-// 4. 家里人屏：逐天点早饭，没有绿色批量按钮；有今日菜单 tab 和买菜
+// 4. 家里人屏：逐天点早饭，没有绿色批量按钮；有本周菜单 tab 和买菜
 check("小陈打开就是家里人那屏", await C.locator("#view-family").isVisible());
 check("没有「一次点好几天」批量按钮", !(await C.content()).includes("一次点好几天"));
 check("家里人屏第一块是「在不在家吃饭」", await C.evaluate(() => document.querySelector("#family-main .sec").innerText.includes("在家吃饭吗")));
@@ -125,12 +125,14 @@ await C.locator("#fam-breakfast .d-row").nth(0).locator("button").click();
 await C.locator(".sheet .pick-card", { hasText: "馄饨" }).click();
 await C.waitForTimeout(120);
 check("点一下就定好今天早饭", /馄饨/.test(await C.locator("#fam-breakfast .d-row").nth(0).innerText()));
-check("有「今日菜单」页签", await C.locator("#dtab-menu").isVisible());
+check("有「本周菜单」页签", /本周菜单/.test(await C.locator("#dtab-menu").innerText()));
+check("家里人版没有 1 2 3 编号", !/[0-9] · /.test(await C.locator("#family-main").innerText()));
+check("家里人版样式和妈妈版统一：页签在最上面、日期下面有节气暖心话", await C.evaluate(() => { const sc = document.querySelector("#view-family .screen-scroll"); return sc.firstElementChild.classList.contains("switch") && !!document.querySelector("#fam-meta .dm-warm"); }));
 await C.click("#dtab-menu");
 await C.waitForTimeout(150);
-check("今日菜单里能选周几看妈妈做什么，默认今天", (await C.locator("#fam-day-strip .day-chip").count()) === 7 && /今天/.test(await C.locator("#fam-day-strip .day-chip.on").innerText()));
+check("本周菜单里能选周几看妈妈做什么，默认今天", (await C.locator("#fam-day-strip .day-chip").count()) === 7 && /今天/.test(await C.locator("#fam-day-strip .day-chip.on").innerText()));
 const tm = await C.locator("#fam-today-menu").innerText();
-check("今日菜单：晚饭在上，早饭只显示自己的，别人的折起来", /晚饭/.test(tm) && /我的早饭/.test(tm) && /其他人的早饭（\d 份）/.test(tm) && !/妈妈的/.test(tm), tm.replace(/\n/g, " ").slice(0, 120));
+check("本周菜单：晚饭在上，早饭只显示自己的，别人的折起来", /晚饭/.test(tm) && /我的早饭/.test(tm) && /其他人的早饭（\d 份）/.test(tm) && !/妈妈的/.test(tm), tm.replace(/\n/g, " ").slice(0, 120));
 await C.screenshot({ path: `${SHOTS}/02b-family-today.png` });
 await C.click("#dtab-order");
 check("底部有「买菜」", await C.locator("#nav-buy").isVisible());
@@ -187,6 +189,8 @@ await M.click("#tab-cook");
 check("照着做里有今天的红烧肉", /红烧肉/.test(await M.locator("#morning").innerText()));
 check("照着做里有今天的早饭（小陈的馄饨）", /馄饨/.test(await M.locator("#morning").innerText()));
 check("没点早饭的人默认鸡蛋三明治", /鸡蛋三明治/.test(await M.locator("#morning").innerText()));
+const bfCards = await M.locator("#morning .m-card").first().locator(".m-dish").allInnerTexts();
+check("照着做：一样的早饭合并成一张，写谁要吃", bfCards.length === 2 && bfCards.some((t) => /鸡蛋三明治 × 3 份/.test(t) && /要吃/.test(t)), bfCards.map((t) => t.replace(/\n/g, " ")).join(" | "));
 await M.screenshot({ path: `${SHOTS}/03-mom-cook.png` });
 await M.locator(".m-dish", { hasText: "红烧肉" }).locator(".done-btn").click();
 await M.click("#tab-plan");
