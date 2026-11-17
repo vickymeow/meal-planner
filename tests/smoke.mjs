@@ -241,6 +241,13 @@ check("买到了点一下划掉", /买好了/.test(await M.locator("#buy-list .b
 await M.locator(".staple-chip", { hasText: "牛奶" }).locator("span").first().click();
 await syncBoth(M, C);
 await C.click("#nav-buy");
+const egg = M.locator("#buy-list .buy-row", { hasText: "鸡蛋" }).first();
+const before = +(await M.locator("#buy-badge").innerText() || 0);
+await egg.locator(".nn-btn").click(); await M.waitForTimeout(150);
+check("每样料都有「不用买」，点了就变灰、不算进没买的", /不用买/.test(await M.locator("#buy-list .buy-row.skipped").first().innerText()) && +(await M.locator("#buy-badge").innerText() || 0) === before - 1);
+await M.click("#buy-toggle"); await M.waitForTimeout(100);
+check("「做菜要买的」能折起来", !(await M.locator("#buy-list").isVisible()) && await M.locator("#buy-fold-sum").isVisible());
+await M.click("#buy-toggle"); await M.waitForTimeout(100);
 check("同步：小陈的买菜页也看到牛奶、五花肉已买", /牛奶/.test(await C.locator("#custom-list").innerText()) && /买好了/.test(await C.locator("#buy-list .buy-row", { hasText: "五花肉" }).innerText()));
 await M.screenshot({ path: `${SHOTS}/05-buy.png`, fullPage: false });
 await M.locator("#buy-list .weee-link").first().scrollIntoViewIfNeeded();

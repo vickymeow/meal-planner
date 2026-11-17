@@ -1146,25 +1146,28 @@
       return { name: n, qty: qty || "适量", srcs: m.srcs, pantry: PANTRY.test(n) };
     }).sort(function (a, b) { return (a.pantry ? 1 : 0) - (b.pantry ? 1 : 0); });
   }
-  function boughtRecently(name) {
-    var b = S.get("bought:" + name);
+  function recentMark(key) {
+    var b = S.get(key);
     if (!b || !b.date) return false;
     return fromIso(b.date) >= addDays(new Date(), -6);
   }
+  function boughtRecently(name) { return recentMark("bought:" + name); }
+  // 「不用买」：家里还有，这一周不用买（一周后自动失效）
+  function noNeed(name) { return recentMark("noneed:" + name); }
   function weeeLink(name) {
     return '<a class="weee-link" href="https://www.sayweee.com/zh/search?keyword=' + encodeURIComponent(name) + '" target="_blank" rel="noopener" aria-label="去 Weee 买' + esc(name) + '"><span class="weee-ico" aria-hidden="true">🛒</span>去 Weee 买<span class="weee-go" aria-hidden="true">›</span></a>';
   }
-  function buyRow(name, qty, src, bought, onToggle, extra) {
-    var row = el("div", "buy-row" + (bought ? " bought" : ""),
+  function buyRow(name, qty, src, bought, onToggle, extra, skipped) {
+    var row = el("div", "buy-row" + (bought ? " bought" : "") + (skipped ? " skipped" : ""),
       '<span class="b-info"><span class="b-name">' + esc(name) + ' <span class="b-qty">' + esc(qty) + "</span></span>" +
       '<span class="b-src">' + esc(src) + "</span>" + weeeLink(name) + "</span>" +
-      '<span class="b-state">' + (bought ? "✓ 买好了" : "还没买") + "</span>");
+      '<span class="b-side"><span class="b-state">' + (skipped ? "不用买" : bought ? "✓ 买好了" : "还没买") + "</span></span>");
     row.setAttribute("role", "button"); row.tabIndex = 0;
     row.setAttribute("aria-label", name + (bought ? "，已买，点一下改回还没买" : "，还没买，点一下标成买好了"));
     function go(e) { if (e.target.closest && (e.target.closest("a") || e.target.closest("button"))) return; onToggle(); }
     row.addEventListener("click", go);
     row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(e); } });
-    if (extra) row.appendChild(extra);
+    if (extra) row.querySelector(".b-side").appendChild(extra);
     return row;
   }
   function customItems() { return S.list("custom:").map(function (x) { return Object.assign({ id: x.id }, x.data); }).sort(function (a, b) { return (a.t || 0) - (b.t || 0); }); }
@@ -1179,7 +1182,7 @@
     return true;
   }
   function unboughtCount() {
-    return collectBuy().filter(function (it) { return !it.pantry && !boughtRecently(it.name); }).length +
+    return collectBuy().filter(function (it) { return !it.pantry && !boughtRecently(it.name) && !noNeed(it.name); }).length +
       customItems().filter(function (it) { return !it.bought; }).length;
   }
   function renderBuy() {
@@ -1209,14 +1212,33 @@
     });
     // 做菜要买的
     var box = $("buy-list"); box.innerHTML = "";
+    var need = items.filter(function (it) { return !it.pantry && !noNeed(it.name); });
+    var togB = $("buy-toggle");
+    togB.textContent = ui.buyOpen ? "收起 ▲" : "展开 ▼";
+    togB.setAttribute("aria-expanded", String(ui.buyOpen));
+    $("buy-fold-sum").hidden = ui.buyOpen;
+    $("buy-fold-sum").textContent = items.length ? "一共 " + items.length + " 样，还有 " + need.filter(function (it) { return !boughtRecently(it.name); }).length + " 样没买" : "还没定菜";
+    box.hidden = !ui.buyOpen;
     if (!items.length) box.appendChild(el("div", "wish-none", "还没定菜，定了就会出现在这里。"));
-    var pantryHead = false;
-    items.forEach(function (it) {
-      if (it.pantry && !pantryHead) { pantryHead = true; box.appendChild(el("div", "day-note", "调料（家里有就不用买）：")).style.margin = "14px 0 8px"; }
+    // 顺序：要买的 → 调料 → 不用买的
+    var order = items.filter(function (it) { return !it.pantry && !noNeed(it.name); })
+      .concat(items.filter(function (it) { return it.pantry && !noNeed(it.name); }))
+      .concat(items.filter(function (it) { return noNeed(it.name); }));
+    var head = null;
+    order.forEach(function (it) {
+      var skipped = noNeed(it.name);
+      var h = skipped ? "不用买的（点「要买」改回来）：" : it.pantry ? "调料（家里有就点「不用买」）：" : null;
+      if (h && h !== head) { head = h; box.appendChild(el("div", "day-note", h)).style.margin = "14px 0 8px"; }
       var b = boughtRecently(it.name);
-      var row = buyRow(it.name, it.qty, "用在：" + it.srcs.join("、"), b, function () {
+      var skipBtn = btn("nn-btn" + (skipped ? " on" : ""), skipped ? "要买" : "不用买", function (e) {
+        e.stopPropagation();
+        if (skipped) { S.del("noneed:" + it.name); toast("「" + it.name + "」又要买了"); }
+        else { S.put("noneed:" + it.name, { date: todayIso() }); toast("「" + it.name + "」不用买"); }
+      }, (skipped ? "要买" : "不用买") + it.name);
+      var row = buyRow(it.name, it.qty, "用在：" + it.srcs.join("、"), b && !skipped, function () {
+        if (skipped) return;
         if (b) S.del("bought:" + it.name); else S.put("bought:" + it.name, { date: todayIso() });
-      });
+      }, skipBtn, skipped);
       if (it.pantry) row.classList.add("pantry");
       box.appendChild(row);
     });
@@ -1236,6 +1258,7 @@
     });
   }
   $("week-list").addEventListener("click", function (e) { var t = e.target; if (t && t.classList && t.classList.contains("dish-link-txt")) openRecipe(t.getAttribute("data-dish")); });
+  $("buy-toggle").addEventListener("click", function () { ui.buyOpen = !ui.buyOpen; renderBuy(); });
   $("custom-toggle").addEventListener("click", function () {
     ui.customOpen = !ui.customOpen;
     $("custom-body").hidden = !ui.customOpen;

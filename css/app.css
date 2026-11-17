@@ -123,3 +123,11 @@ textarea.add-input { min-height: 110px; resize: vertical; line-height: 1.6; }
 .thanks-chip { min-height: 48px; padding: 0 16px; border-radius: 999px; border: 2px solid #f2cf8f; background: #fffaf0; font-family: inherit; font-size: 16.5px; font-weight: 800; color: #8a5a12; cursor: pointer; }
 .thanks-chip.on { background: #fff0c9; border-color: #d99a2b; color: #6b4308; }
 .wish-msg { font-size: 12.5px; font-weight: 700; color: #b3541e; }
+
+/* 买菜：右边一列（状态 + 不用买） */
+.buy-row .b-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.nn-btn { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1.5px solid #e0d3bf; background: #fdf8f0; color: #6f6154; font-family: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
+.nn-btn.on { border-color: #2e7d5b; color: #2e7d5b; background: #eef6ee; }
+.buy-row.skipped { opacity: .55; }
+.buy-row.skipped .b-name { text-decoration: line-through; }
+.buy-row.skipped .b-state { background: #eee6da; color: #6f6154; }
