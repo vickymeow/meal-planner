@@ -161,7 +161,12 @@
     onStatus: function (cb) { statusListeners.push(cb); cb(status); },
     status: function () { return status; },
     pendingCount: function () { return pending.length; },
-    syncNow: sync
+    syncNow: sync,
+    // 直接调用一个后台函数（自动带上家庭密钥），比如提交反馈
+    call: function (name, body) {
+      if (!household) return Promise.reject(new Error("local"));
+      return rpc(name, Object.assign({ h: household }, body || {}));
+    }
   };
   window.MPStore = api;
 })();

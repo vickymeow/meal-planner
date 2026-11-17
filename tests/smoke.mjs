@@ -28,12 +28,14 @@ const BASE = `http://127.0.0.1:${server.address().port}`;
 
 // —— 假的 Supabase：和 mp_pull / mp_push 一样的行为 ——
 const db = new Map();
+const feedback = [];
 let clock = Date.parse("2026-01-01T00:00:00Z");
 const tick = () => new Date((clock += 1)).toISOString();
 async function fakeSupabase(route) {
   const url = route.request().url();
   const body = JSON.parse(route.request().postData() || "{}");
   if (body.h !== H) return route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ message: "unknown household" }) });
+  if (url.endsWith("/rpc/mp_feedback_add")) { feedback.push(body); return route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) }); }
   if (url.endsWith("/rpc/mp_push")) {
     for (const x of body.items) db.set(x.id, { id: x.id, data: x.data, deleted: !!x.deleted, by: x.by, at: tick() });
     return route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, now: tick() }) });
@@ -315,7 +317,7 @@ if (await feedLink.count()) {
   await M.waitForTimeout(300);
 }
 await M.locator("#view-today .activity-sec").screenshot({ path: `${SHOTS}/feed.png` });
-check("家里动态里提到的人带小头像", (await M.locator("#view-today .history-box .who-ref .mini-av").count()) > 0);
+check("家里动态里提到的人用颜色标出来，句子中间不插头像", (await M.locator("#view-today .history-box .who-ref").count()) > 0 && (await M.locator("#view-today .history-box .act-main img, #view-today .history-box .act-main .mini-av").count()) === 0);
 
 // 语音助手（妈妈）：AI 没开通时用本地规则听懂 → 确认页 → 写入
 await M.click("#voice-fab", { force: true }); // 按钮有呼吸动画
@@ -382,7 +384,8 @@ check("「我的」页有发给家里人的链接", (await M.locator("#share-sec
 await M.locator("#view-profile [data-fb-slot] input").fill("字再大一点");
 await M.locator("#view-profile [data-fb-slot] .sheet-cta").click();
 await syncBoth(M, C);
-check("反馈带名字，两处共用一份", /妈妈：字再大一点/.test(await M.locator("#view-today .fb-list").innerText()));
+check("反馈直接送到后台（带名字）", feedback.some((f) => f.who === "mom" && f.msg === "字再大一点"));
+check("反馈不留在 App 里给家里人看", (await M.locator(".fb-list, .fb-item").count()) === 0 && ![...db.keys()].some((k) => k.startsWith("fb:")));
 
 // 刷新后数据还在（不是 demo，不会恢复原样）
 await M.reload(); await M.waitForTimeout(500);

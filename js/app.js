@@ -199,10 +199,6 @@
     if (src) return '<img class="act-dot act-img" src="' + esc(src) + '" alt="" aria-hidden="true">';
     return '<span class="act-dot act-' + p.id + '" aria-hidden="true">' + esc(p.initial) + "</span>";
   }
-  function miniAv(p) {
-    var src = avatarSrc(p.id);
-    return src ? '<img class="mini-av" src="' + esc(src) + '" alt="">' : '<span class="mini-av act-' + p.id + '" aria-hidden="true">' + esc(p.initial) + "</span>";
-  }
   function richText(text) {
     var names = allDishes().map(function (d) { return d.name; }).filter(function (n) { return n && n.length > 1; });
     var tokens = names.map(function (n) { return { k: "dish", s: n }; })
@@ -214,7 +210,7 @@
       for (var j = 0; j < tokens.length; j++) if (str.substr(i, tokens[j].s.length) === tokens[j].s) { hit = tokens[j]; break; }
       if (!hit) { out += esc(str[i]); i++; continue; }
       if (hit.k === "dish") out += '<span class="dish-link-txt" role="button" tabindex="0" data-dish="' + esc(hit.s) + '">' + esc(hit.s) + "</span>";
-      else out += '<span class="who-ref">' + miniAv(hit.p) + esc(hit.s) + "</span>";
+      else out += '<span class="who-ref act-c-' + hit.p.id + '">' + esc(hit.s) + "</span>";
       i += hit.s.length;
     }
     return out;
@@ -540,9 +536,9 @@
     if (on && on.scrollIntoView && box.scrollWidth > box.clientWidth) box.scrollLeft = Math.max(0, on.offsetLeft - box.clientWidth / 2 + on.offsetWidth / 2);
   }
   function renderDayStrip() {
-    var ds = days();
-    if (ds.indexOf(ui.planDay) === -1) ui.planDay = ds[1];
-    dayStrip($("day-strip"), ui.planDay, function (id) { ui.planDay = id; renderMomPlan(); });
+    var ds = cookDays(); // 晚上 7 点后，今天就过去了，从明天开始
+    if (ds.indexOf(ui.planDay) === -1) ui.planDay = tomorrowIso();
+    dayStrip($("day-strip"), ui.planDay, function (id) { ui.planDay = id; renderMomPlan(); }, ds);
     var t = dayInfo(todayIso()), cur = dayInfo(ui.planDay);
     $("plan-date").textContent = "今天 " + t.md + " " + t.weekday;
     $("plan-meta").innerHTML = dayMetaHTML(todayIso());
@@ -1562,13 +1558,12 @@
     card.appendChild(btn("sheet-cta", "📷 换头像", function () { pickPhoto({ kind: "avatar", id: p.id }); }));
     if (src) card.appendChild(btn("sheet-close", "用回默认头像", function () { S.del("avatar:" + p.id); toast("换回默认头像了"); }));
     var myW = wishes().filter(function (w) { return w.person === p.id; });
-    var bfDays = days().filter(function (id) { return bfPick(id, p.id); });
-    var fbN = S.list("fb:").filter(function (x) { return x.data.who === p.id; }).length;
+    var bfDone = bfDays().filter(function (id) { return isHome(id, p.id) && bfPick(id, p.id); });
     $("profile-stats").innerHTML =
       '<div class="log-item">最近想吃：' + (myW.length ? esc(myW.map(function (w) { return w.dish; }).join("、")) : "还没点") + "</div>" +
-      '<div class="log-item">早饭定了：' + (bfDays.length ? bfDays.map(function (id) { return dayInfo(id).short; }).join("、") : "还没定") + "</div>" +
+      '<div class="log-item">早饭定了：' + (bfDone.length ? bfDone.map(function (id) { var d = dayInfo(id); return (d.rel || d.short) + " " + esc(bfPick(id, p.id)); }).join("、") : "还没定") + "</div>" +
       '<div class="log-item">明天在家吃饭：' + (isHome(tomorrowIso(), p.id) ? "在家" : "不在家") + "</div>" +
-      '<div class="log-item">留过反馈：' + fbN + " 条</div>";
+      "";
     var who = $("profile-who"); who.innerHTML = "";
     D.PEOPLE.forEach(function (x) {
       var b = el("button", "me-btn" + (ui.me === x.id ? " on" : ""), avatarHTML(x) + '<span class="me-name">' + esc(x.name) + "<small>" + esc(x.sub) + "</small></span>");
@@ -1637,21 +1632,16 @@
       box.appendChild(btn("sheet-cta", "提交反馈", function () {
         var t = trim(input.value);
         if (!t) { toast("先说一句或写一句"); input.focus(); return; }
-        S.put("fb:" + Date.now() + "-" + rnd(), { who: ui.me, text: t, t: Date.now() });
-        input.value = ""; toast("收到了，谢谢！");
+        // 直接送到后台，不进同步库，家里人看不到
+        S.call("mp_feedback_add", { who: ui.me, msg: t }).then(function () {
+          input.value = ""; toast("收到了，谢谢！");
+        }, function () { toast("没送出去，等一下再试"); });
       }));
-      var list = el("div", "fb-list"); list.style.marginTop = "8px";
-      box.appendChild(list);
+      box.appendChild(el("div", "assist-hint", "写的话家里人看不到，直接送到后台。"));
       slot.appendChild(box);
     });
   }
-  function renderFeedback() {
-    var fbs = S.list("fb:").map(function (x) { return x.data; }).sort(function (a, b) { return (b.t || 0) - (a.t || 0); }).slice(0, 30);
-    document.querySelectorAll(".fb-list").forEach(function (box) {
-      box.innerHTML = fbs.length ? fbs.map(function (f) { return '<div class="fb-item"><b>' + esc(pname(f.who)) + "：</b>" + esc(f.text) + "</div>"; }).join("")
-        : '<div class="wish-none">还没有反馈。</div>';
-    });
-  }
+  function renderFeedback() {}
 
   // =====================================================================
   //  妈妈的悬浮话筒：说一句 → 确认页 → 才排进这一周
