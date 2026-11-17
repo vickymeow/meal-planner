@@ -217,3 +217,13 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
   border-radius: 50%; background: #f6dfb0; color: #7a4a08; font-size: 15px; }
 .fold-btn[aria-expanded="true"] { background: #fff !important; }
 .fold-btn[aria-expanded="true"] .fb-ic { background: #eef6ee; color: #2e7d5b; }
+
+/* 早饭多选：选上的卡片绿色框 */
+.pick-card.picked { border-color: #2e7d5b !important; box-shadow: 0 0 0 2px #2e7d5b inset, 0 6px 14px rgba(46,125,91,.18) !important; }
+.pick-card.picked .pk-from { color: #2e7d5b; font-weight: 800; }
+.sheet-cta:disabled { opacity: .5; }
+
+/* 早饭多选：选上的卡片绿色框 */
+.pick-card.picked { border-color: #2e7d5b !important; box-shadow: 0 0 0 2px #2e7d5b inset, 0 6px 14px rgba(46,125,91,.18) !important; }
+.pick-card.picked .pk-from { color: #2e7d5b; font-weight: 800; }
+.sheet-cta:disabled { opacity: .5; }

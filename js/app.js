@@ -151,19 +151,23 @@
   function guestCount(date) { return guests(date).reduce(function (s, g) { return s + (g.count || 1); }, 0); }
   function guestText(date) { return guests(date).map(function (g) { return g.label + " " + g.count + "位"; }).join("、"); }
   function totalPeople(date) { return homePeople(date).length + guestCount(date); }
-  function bfPick(date, pid) { var b = S.get("bf:" + date + ":" + pid); return b && b.dish; }
+  // 早饭可以点好几样：存成 { dishes: [...], dish: 第一样 }（dish 留着给旧版本看）
+  function bfPicks(date, pid) { var b = S.get("bf:" + date + ":" + pid); if (!b) return []; return (b.dishes && b.dishes.length) ? b.dishes.slice() : (b.dish ? [b.dish] : []); }
+  function bfPick(date, pid) { var l = bfPicks(date, pid); return l.length ? l.join("、") : null; }
+  function saveBf(date, pid, list) { S.put("bf:" + date + ":" + pid, { dish: list[0], dishes: list }); }
   // 某天的早饭：在家的人每人一份。没点的默认做鸡蛋三明治。
   function bfOff(pid) { var x = S.get("bfoff:" + pid); return !!(x && x.v); }
   function bfList(date) {
     return homePeople(date).map(function (p) {
       if (bfOff(p.id)) return { person: p.id, name: D.BF_SKIP, kind: "skip" };
-      var pick = bfPick(date, p.id);
-      if (!pick) return { person: p.id, name: D.BF_FALLBACK, kind: "fallback" };
-      if (pick === D.BF_SKIP) return { person: p.id, name: pick, kind: "skip" };
-      if (pick === D.BF_ANY) return { person: p.id, name: pick, kind: "any" };
-      return { person: p.id, name: pick, kind: "pick" };
-    });
+      var picks = bfPicks(date, p.id);
+      if (!picks.length) return [{ person: p.id, name: D.BF_FALLBACK, kind: "fallback" }];
+      if (picks[0] === D.BF_SKIP) return [{ person: p.id, name: D.BF_SKIP, kind: "skip" }];
+      if (picks[0] === D.BF_ANY) return [{ person: p.id, name: D.BF_ANY, kind: "any" }];
+      return picks.map(function (n) { return { person: p.id, name: n, kind: "pick" }; }); // 一样一行
+    }).reduce(function (a, b) { return a.concat(Array.isArray(b) ? b : [b]); }, []);
   }
+  function bfPeopleCount(date) { var seen = {}; bfList(date).forEach(function (it) { if (it.kind !== "skip") seen[it.person] = 1; }); return Object.keys(seen).length; }
   function dinner(date) { var x = S.get("dinner:" + date); return (x && x.dishes) || []; }
   function setDinner(date, list) { S.put("dinner:" + date, { dishes: list }); }
   function wishes() {
@@ -626,9 +630,9 @@
   }
   function foldBtn(open, closedHTML, openText, onClick) { var b = btn("fold-btn", "", onClick); setFold(b, open, closedHTML, openText); return b; }
   function renderMomBreakfast() {
-    var all = bfList(ui.planDay), n = all.filter(function (it) { return it.kind !== "skip"; }).length;
+    var n = bfPeopleCount(ui.planDay);
     var fb = $("bf-fold");
-    setFold(fb, ui.momBfOpen, "🥣 " + esc(dayName(ui.planDay)) + "的早饭 · " + (n ? n + " 份，大家自己定的" : "不用做"), "收起早饭");
+    setFold(fb, ui.momBfOpen, "🥣 " + esc(dayName(ui.planDay)) + "的早饭 · " + (n ? n + " 个人吃，大家自己定的" : "不用做"), "收起早饭");
     $("breakfast").hidden = !ui.momBfOpen;
     var box = $("breakfast"); box.innerHTML = "";
     var card = el("div", "bf-card", '<div class="plan-meal">早饭 · 加热就行</div>');
@@ -644,7 +648,7 @@
         '<span class="heat-tag">加热就行</span>');
       if (it.kind !== "any") dishClickRow(row, it.name);
       // 妈妈只能改她自己的那份早饭；别人的只看
-      if (it.person === ui.me) row.appendChild(btn("mini-btn", "换", function () { openBreakfast(ui.planDay); }, "换我自己的早饭"));
+      if (it.person === ui.me && list.filter(function (x) { return x.person === ui.me; })[0] === it) row.appendChild(btn("mini-btn", "换", function () { openBreakfast(ui.planDay); }, "换我自己的早饭"));
       card.appendChild(row);
     });
     var mine = bfList(ui.planDay).filter(function (it) { return it.person === ui.me && it.kind === "skip"; })[0];
@@ -911,7 +915,7 @@
       var label = !home ? '<span class="s-dish away">这天不在家</span>'
         : pick ? '<span class="s-dish">' + esc(pick) + "</span>" : '<span class="s-dish none">还没点</span>';
       var row = el("div", "d-row", '<span class="s-day">' + d.short + "<small>" + (d.rel ? d.rel + " · " : "") + d.num + "日</small></span>" + label);
-      if (home && pick && pick !== D.BF_ANY && pick !== D.BF_SKIP) dishClick(row.querySelector(".s-dish"), pick);
+      if (home && pick && pick !== D.BF_ANY && pick !== D.BF_SKIP && bfPicks(id, me).length === 1) dishClick(row.querySelector(".s-dish"), pick);
       if (home) row.appendChild(btn("mini-btn", pick ? "换一道" : "选早饭", function () { openBreakfast(id); }, "点" + d.short + "的早饭"));
       bf.appendChild(row);
     });
@@ -932,24 +936,51 @@
     log((now ? dayName(id) + "在家吃饭" : dayName(id) + "不在家吃饭"));
     toast(now ? "好了，妈妈知道你" + dayName(id) + "在家" : "好了，妈妈知道你" + dayName(id) + "不在家");
   }
-  function setBreakfast(id, name) {
-    S.put("bf:" + id + ":" + ui.me, { dish: name });
-    log("定了" + dayName(id) + "早饭：" + name);
+  function setBreakfast(id, name) { setBreakfastList(id, [name]); }
+  function setBreakfastList(id, list) {
+    saveBf(id, ui.me, list);
+    var txt = list.join("、");
+    log("定了" + dayName(id) + "早饭：" + txt);
     closeSheet();
-    toast(dayName(id) + "早饭：" + name);
+    toast(dayName(id) + "早饭：" + txt);
   }
-  function openBreakfast(id) {
-    var d = dayInfo(id), cur = bfPick(id, ui.me);
-    sheet.innerHTML = "<h3>" + d.short + "（" + d.md + "）早饭吃什么？</h3>" + '<p class="sheet-sub">只定这一天。</p>';
+  // 从做法页「当早饭」：加进那天的早饭里（已经点了的也保留）
+  function addBreakfast(id, name) {
+    var cur = bfPicks(id, ui.me).filter(function (n) { return n !== D.BF_ANY && n !== D.BF_SKIP; });
+    if (cur.indexOf(name) === -1) cur.push(name);
+    setBreakfastList(id, cur);
+  }
+  // 点早饭：可以点好几样，点一下选上、再点一下取消，最后点「就这些」
+  function openBreakfast(id, keep) {
+    var d = dayInfo(id), cur = bfPicks(id, ui.me);
+    var sel = keep || cur.filter(function (n) { return n !== D.BF_ANY && n !== D.BF_SKIP; });
+    sheet.innerHTML = "<h3>" + d.short + "（" + d.md + "）早饭吃什么？</h3>" + '<p class="sheet-sub">可以点好几样：点一下选上，再点一下取消。</p>';
     var g = el("div", "pick-grid");
+    var save = btn("sheet-cta", "", function () {
+      if (!sel.length) { toast("先点一样，或者点「随便」"); return; }
+      setBreakfastList(id, sel.slice());
+    });
+    function refresh() { save.textContent = sel.length ? "就这些：" + sel.join("、") : "先点一样"; save.disabled = !sel.length; }
     menuFor("breakfast").forEach(function (dd) {
-      g.appendChild(pickCard(dd.name, cur === dd.name ? "现在选的就是这个" : null, function () { setBreakfast(id, dd.name); }));
+      var on = sel.indexOf(dd.name) !== -1;
+      var c = pickCard(dd.name, on ? "✓ 选了" : null, function () {
+        var i = sel.indexOf(dd.name), now = i === -1;
+        if (now) sel.push(dd.name); else sel.splice(i, 1);
+        c.classList.toggle("picked", now); c.setAttribute("aria-pressed", String(now));
+        var f = c.querySelector(".pk-from");
+        if (now && !f) c.querySelector(".pk-name").appendChild(el("span", "pk-from", "✓ 选了"));
+        if (!now && f) f.remove();
+        refresh();
+      });
+      c.classList.toggle("picked", on); c.setAttribute("aria-pressed", String(on));
+      g.appendChild(c);
     });
     sheet.appendChild(g);
+    refresh();
+    sheet.appendChild(save);
     var sp = el("div", "bf-special");
     [D.BF_ANY, D.BF_SKIP].forEach(function (n) {
-      var b = btn(cur === n ? "on" : "", n === D.BF_ANY ? "🤲 随便" : "🙅 今天不吃", function () { setBreakfast(id, n); });
-      sp.appendChild(b);
+      sp.appendChild(btn(cur[0] === n ? "on" : "", n === D.BF_ANY ? "🤲 随便" : "🙅 今天不吃", function () { setBreakfast(id, n); }));
     });
     sheet.appendChild(sp);
     sheet.appendChild(el("h4", null, "上面没有？写下来"));
@@ -957,13 +988,14 @@
     var input = el("input", "add-input"); input.type = "text"; input.placeholder = "比如：三明治"; input.setAttribute("aria-label", "早饭名字");
     row.appendChild(input); row.appendChild(voiceButton(input, "说话说早饭名字"));
     sheet.appendChild(row);
-    sheet.appendChild(btn("sheet-cta", "下一步：确认", function () {
+    sheet.appendChild(btn("sheet-close", "＋ 加上这一样", function () {
       var name = trim(input.value);
       if (!name) { toast("先写早饭名字"); input.focus(); return; }
-      confirmPanel("对吗？", d.short + "早饭就吃这个：", name, "对，就这样", function () {
+      confirmPanel("对吗？", "加进" + d.short + "早饭：", name, "对，加上", function () {
         if (!dish(name)) S.put("dish:" + name, { name: name, meal: "breakfast", cat: guessCat(name), ings: [], steps: [], order: newOrder() });
-        setBreakfast(id, name);
-      }, function () { openBreakfast(id); });
+        if (sel.indexOf(name) === -1) sel.push(name);
+        openBreakfast(id, sel);
+      }, function () { openBreakfast(id, sel); });
     }));
     sheet.appendChild(closeBtn("先不定，回去"));
     openSheet();
@@ -1227,7 +1259,7 @@
       var d = dayInfo(id), home = isHome(id, ui.me);
       var b = el("button", "g-day-btn", '<span class="t-top">' + d.short + '</span><span class="t-sub">' + (home ? (bfPick(id, ui.me) || "还没点") : "不在家") + "</span>");
       b.type = "button"; b.disabled = !home;
-      b.addEventListener("click", function () { setBreakfast(id, name); });
+      b.addEventListener("click", function () { addBreakfast(id, name); });
       g.appendChild(b);
     });
     sheet.appendChild(g);
@@ -1897,7 +1929,9 @@
       else if (a.type === "bf_switch") { ops.push({ id: "bfoff:" + ui.me, data: { v: !a.on } }); log(a.on ? "要吃早饭了" : "不吃早饭了"); }
       else if (a.type === "breakfast") {
         if (a.dish !== D.BF_SKIP && a.dish !== D.BF_ANY && !dish(a.dish)) ops.push({ id: "dish:" + a.dish, data: { name: a.dish, meal: "breakfast", cat: guessCat(a.dish), ings: [], steps: [], order: newOrder() } });
-        ops.push({ id: "bf:" + a.date + ":" + ui.me, data: { dish: a.dish } }); log("定了" + dayName(a.date) + "早饭：" + a.dish);
+        var bl = (a.dish === D.BF_SKIP || a.dish === D.BF_ANY) ? [] : bfPicks(a.date, ui.me).filter(function (n) { return n !== D.BF_SKIP && n !== D.BF_ANY; });
+        if (bl.indexOf(a.dish) === -1) bl.push(a.dish);
+        ops.push({ id: "bf:" + a.date + ":" + ui.me, data: { dish: bl[0], dishes: bl } }); log("定了" + dayName(a.date) + "早饭：" + bl.join("、"));
       } else if (a.type === "dinner") {
         if (!dish(a.dish)) {
           var rec = D.RECOMMENDS.filter(function (r) { return r.name === a.dish; })[0];
