@@ -20,6 +20,7 @@
 index.html            页面
 css/mock-v19.css      从 mock v19 原样抽出的样式（不要改这里）
 css/app.css           正式版的改动（全屏手机布局等）
+css/theme-cream.css   奶油黄主题（Pinterest MealSea 那张）：最后加载，只换颜色和样子；Weee 按钮、头像颜色不动
 js/config.js          Supabase 地址 + publishable key、天气经纬度、自动配图开关
 js/data.js            家里人、起步菜谱、推荐新菜、节气、暖心话
 js/store.js           同步层
