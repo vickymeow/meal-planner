@@ -80,6 +80,10 @@ check("点「定计划」切回来", await M.locator("#plan-area").isVisible());
 await syncBoth(M, C);
 check("起步菜谱写进同步库（一次）", db.has("meta:seeded") && db.has("dish:乌冬面") && db.has("dish:清蒸鲈鱼"));
 
+// 妈妈屏：「周几」在「妈妈定晚饭」里面，不在最上面
+check("妈妈屏「周几」在「妈妈定晚饭」那块里", await M.evaluate(() => document.getElementById("day-strip").closest(".sec").innerText.includes("妈妈定晚饭")));
+check("那天的早饭默认折起来", !(await M.locator("#breakfast").isVisible()));
+await M.click("#bf-fold");
 // 妈妈只能换自己的早饭
 check("妈妈屏早饭卡只有妈妈自己那行能换", (await M.locator("#breakfast .bf-row button").count()) === 1);
 await M.locator("#breakfast .bf-row button").click();
@@ -98,15 +102,33 @@ await M.screenshot({ path: `${SHOTS}/01-mom-plan.png` });
 // 4. 家里人屏：逐天点早饭，没有绿色批量按钮；有今日菜单 tab 和买菜
 check("小陈打开就是家里人那屏", await C.locator("#view-family").isVisible());
 check("没有「一次点好几天」批量按钮", !(await C.content()).includes("一次点好几天"));
+check("家里人屏第一块是「在不在家吃饭」", await C.evaluate(() => document.querySelector("#family-main .sec").innerText.includes("在家吃饭吗")));
+check("在不在家：7 天都能点", (await C.locator("#fam-home .home-day").count()) === 7);
+check("我的早饭默认折起来", !(await C.locator("#fam-breakfast").isVisible()));
+await C.click("#fam-bf-toggle");
 check("早饭按天一排排列（7 天）", (await C.locator("#fam-breakfast .d-row").count()) === 7);
 await C.locator("#fam-breakfast .d-row").nth(0).locator("button").click();
 await C.locator(".sheet .pick-card", { hasText: "馄饨" }).click();
 await C.waitForTimeout(120);
 check("点一下就定好今天早饭", /馄饨/.test(await C.locator("#fam-breakfast .d-row").nth(0).innerText()));
 check("有「今日菜单」页签", await C.locator("#dtab-menu").isVisible());
+await C.click("#dtab-menu");
+await C.waitForTimeout(150);
+const tm = await C.locator("#fam-today-menu").innerText();
+check("今日菜单：晚饭在上，早饭只显示自己的，别人的折起来", /晚饭/.test(tm) && /我的早饭/.test(tm) && /其他人的早饭（\d 份）/.test(tm) && !/妈妈的/.test(tm), tm.replace(/\n/g, " ").slice(0, 120));
+await C.screenshot({ path: `${SHOTS}/02b-family-today.png` });
+await C.click("#dtab-order");
 check("底部有「买菜」", await C.locator("#nav-buy").isVisible());
 // 小陈明天不在家
-await C.locator("#fam-tonight .home-btn").click();
+await C.locator("#fam-home .home-day").nth(1).click();
+await C.waitForTimeout(150);
+check("点一下就改成明天不在家", /不在家/.test(await C.locator("#fam-home .home-day").nth(1).innerText()));
+// 早饭总开关：关掉就不用点
+await C.locator("#fam-bf-switch .switch-btn").click();
+await C.waitForTimeout(150);
+check("关掉「我吃早饭」：早饭那块收起来、不用点", /不吃早饭/.test(await C.locator("#fam-bf-switch").innerText()) && !(await C.locator("#fam-breakfast").isVisible()));
+await C.locator("#fam-bf-switch .switch-btn").click();
+await C.waitForTimeout(150);
 // 小陈点想吃：红烧肉 · 超想吃
 await C.click("#fam-order-btn");
 await C.locator(".sheet .pick-card", { hasText: "红烧肉" }).click();

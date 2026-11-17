@@ -35,12 +35,6 @@
               <div class="day-date" id="plan-date"></div>
               <div class="day-meta" id="plan-meta"></div>
             </div>
-            <div class="day-strip" id="day-strip" role="tablist" aria-label="选日子"></div>
-
-            <div class="sec home-sec">
-              <div id="people"></div>
-              <div id="guests-mom" hidden></div>
-            </div>
 
             <div class="sec">
               <h2 class="sec-title">大家最近想吃 <span class="hint">家里人点的</span></h2>
@@ -48,13 +42,16 @@
             </div>
 
             <div class="sec">
-              <h2 class="sec-title">早饭 <span class="hint">大家自己定的</span></h2>
-              <div id="breakfast"></div>
-            </div>
-
-            <div class="sec">
-              <h2 class="sec-title">妈妈定晚饭 <span class="hint" id="dinner-hint"></span></h2>
-              <div id="dinner-plan"></div>
+              <h2 class="sec-title">妈妈定晚饭 <span class="hint">先点哪天</span></h2>
+              <div class="day-strip" id="day-strip" role="tablist" aria-label="选日子"></div>
+              <div class="sel-day" id="sel-day"></div>
+              <div class="home-sec">
+                <div id="people"></div>
+                <div id="guests-mom" hidden></div>
+              </div>
+              <div id="dinner-plan" style="margin-top:12px"></div>
+              <button type="button" class="fold-btn" id="bf-fold" aria-expanded="false" aria-controls="breakfast"></button>
+              <div id="breakfast" hidden></div>
             </div>
           </div>
 
@@ -84,30 +81,38 @@
           <div class="day-head">
             <div class="day-when" id="fam-when">我的这屏</div>
             <div class="day-date" id="fam-date" style="font-size:27px"></div>
-            <div class="day-note">点早饭、点想吃的、看妈妈做什么。</div>
-          </div>
+                      </div>
           <div class="switch dtab-bar" role="tablist" aria-label="页签">
-            <button id="dtab-order" class="on" type="button" role="tab">点菜 · 我的安排<small>早饭 · 想吃 · 在家</small></button>
+            <button id="dtab-order" class="on" type="button" role="tab">我的安排<small>在家 · 早饭 · 想吃</small></button>
             <button id="dtab-menu" type="button" role="tab">今日菜单<small>今天大家吃什么</small></button>
           </div>
 
           <div id="family-main">
             <div class="sec">
-              <h2 class="sec-title">1 · 我这一周的早饭</h2>
-              <div class="day-note" style="margin-bottom:10px">每天点一下就定好。</div>
-              <div id="fam-breakfast"></div>
+              <h2 class="sec-title">1 · 我这几天在家吃饭吗</h2>
+              <div id="fam-home"></div>
             </div>
             <div class="sec">
-              <h2 class="sec-title">2 · 我想吃什么</h2>
+              <h2 class="sec-title">2 · 妈妈做什么 <span class="hint">先点哪天</span></h2>
+              <div class="day-strip" id="fam-day-strip" role="tablist" aria-label="选日子"></div>
+              <div id="fam-tonight"></div>
+            </div>
+            <div class="sec">
+              <h2 class="sec-title">3 · 我的早饭
+                <button type="button" class="custom-toggle" id="fam-bf-toggle" aria-expanded="false" aria-controls="fam-bf-body">展开 ▼</button>
+              </h2>
+              <div id="fam-bf-switch"></div>
+              <div id="fam-bf-body" hidden>
+                <div id="fam-breakfast"></div>
+              </div>
+            </div>
+            <div class="sec">
+              <h2 class="sec-title">4 · 我想吃什么</h2>
               <button class="order-big primary" id="fam-order-btn" type="button">🍽 我想吃这个<small>挑一道，再选有多想吃</small></button>
               <div id="fam-wishes" style="margin-top:12px"></div>
             </div>
             <div class="sec">
-              <h2 class="sec-title">3 · 妈妈今晚做什么 · 我在家吗</h2>
-              <div id="fam-tonight"></div>
-            </div>
-            <div class="sec">
-              <h2 class="sec-title">4 · 有客人来 <span class="guest-summary" id="guest-summary" hidden></span></h2>
+              <h2 class="sec-title">5 · 有客人来 <span class="guest-summary" id="guest-summary" hidden></span></h2>
               <button class="guest-fold-btn" id="guest-fold-btn" type="button" aria-expanded="false" aria-controls="guest-body"></button>
               <div class="guest-collapsed-note" id="guest-collapsed-note" hidden></div>
               <div id="guest-body" hidden>
