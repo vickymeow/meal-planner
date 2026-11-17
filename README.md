@@ -24,7 +24,7 @@ js/config.js          Supabase 地址 + publishable key、天气经纬度、自�
 js/data.js            家里人、起步菜谱、推荐新菜、节气、暖心话
 js/store.js           同步层
 js/app.js             界面
-icons/                App 图标（「爱心厨房」）
+icons/                App 图标（一家人围桌吃饭的 logo）
 photos/               菜品照片（维基共享资源，免费授权）
 js/photos.js          每张照片的作者和授权
 supabase/functions/   AI 边缘函数 mp-ai（Qwen）
@@ -82,7 +82,7 @@ Supabase 后台 → 项目 `breakfast-decider` → **Edge Functions → Secrets*
 
 - 天气：在 `js/config.js` 里填家里的经纬度（`weather.latitude / longitude`），日期下面就会显示天气。不填就只显示节气和暖心话。
 - 菜的照片：常做的菜自带实拍照片（`photos/`，来自维基共享资源，作者和授权在「我的」→「图片来源」）；新加的菜用 Pollinations 自动配图，配不出就显示暖色方块。每道菜的做法页也能「📷 换照片」。
-- 图标：家里人提供的「爱心厨房」图，见 `icons/CREDITS.md`。
+- 图标：家里人提供的 logo，见 `icons/CREDITS.md`。
 
 ## 测试
 
