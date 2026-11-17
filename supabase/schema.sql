@@ -60,3 +60,10 @@ grant execute on function public.mp_push(text, jsonb) to anon, authenticated;
 
 -- 新建一个家（得到家庭密钥）：
 -- insert into public.mp_households(id) values (encode(extensions.gen_random_bytes(15),'hex')) returning id;
+
+-- 后来加的（都已经建在项目里）：
+-- mp_feedback + mp_feedback_add(h, who, msg)：反馈直接进后台，手机读不到
+-- mp_push_subs + mp_push_sub(h, who, sub, enable)：每部手机的通知地址
+-- mp_secrets：后台自己用的钥匙（通知签名密钥由云函数 mp-notify 第一次用时自己生成，不进仓库）
+-- 触发器 mp_items_notify：有新的「家里动态」(log:*) 就叫云函数 mp-notify 发通知
+-- 定时任务 mp-breakfast-reminder：每小时 30 分叫一次 mp-notify，家里时间晚上 9:30 提醒点明天早饭

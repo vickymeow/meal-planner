@@ -29,12 +29,14 @@ const BASE = `http://127.0.0.1:${server.address().port}`;
 // —— 假的 Supabase：和 mp_pull / mp_push 一样的行为 ——
 const db = new Map();
 const feedback = [];
+const pushSubs = [], notifyCalls = [];
 let clock = Date.parse("2026-01-01T00:00:00Z");
 const tick = () => new Date((clock += 1)).toISOString();
 async function fakeSupabase(route) {
   const url = route.request().url();
   const body = JSON.parse(route.request().postData() || "{}");
   if (body.h !== H) return route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ message: "unknown household" }) });
+  if (url.endsWith("/rpc/mp_push_sub")) { pushSubs.push(body); return route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) }); }
   if (url.endsWith("/rpc/mp_feedback_add")) { feedback.push(body); return route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) }); }
   if (url.endsWith("/rpc/mp_push")) {
     for (const x of body.items) db.set(x.id, { id: x.id, data: x.data, deleted: !!x.deleted, by: x.by, at: tick() });
@@ -59,8 +61,26 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
 
 const browser = await chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] }); // 假麦克风：录音测试用
 async function phone(me, tz) {
-  const ctx = await browser.newContext({ ...devices["iPhone 13"], locale: "zh-CN", permissions: ["microphone"], timezoneId: tz || DAY_TZ });
+  const ctx = await browser.newContext({ ...devices["iPhone 13"], locale: "zh-CN", permissions: ["microphone", "notifications"], timezoneId: tz || DAY_TZ });
   await ctx.route("**/rest/v1/rpc/**", fakeSupabase);
+  // 假的通知服务：浏览器测试里没有真的推送服务，换成假的订阅
+  await ctx.route("**/functions/v1/mp-notify", (r) => {
+    const b = JSON.parse(r.request().postData() || "{}"); notifyCalls.push(b);
+    return r.fulfill({ contentType: "application/json", body: JSON.stringify(b.task === "key" ? { key: "BM8UquHy02WmXbkFYJuqn6R5r9p8MvvTVvnsuj7jP_kmpH5DlVtQUUq7DM5DQubQZ6cO7mLQ81BwihblGn_KyWY" } : { sent: 1 }) });
+  });
+  await ctx.addInitScript(() => {
+    let sub = null;
+    const mk = () => ({ endpoint: "https://push.example/fake", toJSON: () => ({ endpoint: "https://push.example/fake", keys: { p256dh: "x", auth: "y" } }), unsubscribe: async () => { sub = null; return true; } });
+    if (window.Notification) {
+      let perm = "default";
+      Object.defineProperty(Notification, "permission", { get: () => perm, configurable: true });
+      Notification.requestPermission = async () => { perm = "granted"; return perm; };
+    }
+    if (window.PushManager) {
+      PushManager.prototype.subscribe = async function () { sub = mk(); return sub; };
+      PushManager.prototype.getSubscription = async function () { return sub; };
+    }
+  });
   await ctx.route("**/image.pollinations.ai/**", (r) => r.abort()); // 测「配不出图」时的暖色方块
   // 假的 AI：句子里带「AI测试」时假装 Qwen 听懂了；其他时候假装还没开通（走本地规则）
   await ctx.route("**/functions/v1/mp-ai", (r) => {
@@ -413,8 +433,16 @@ const visible = await M.locator("body").innerText();
 const eng = (visible.match(/[A-Za-z]{2,}/g) || []).filter((w) => !["Vicky", "Weee"].includes(w));
 check("界面没有英文混写", eng.length === 0, eng.join(","));
 
+// 通知：首页有提示条；「我的」里能打开
+await M.click("#nav-today"); await M.waitForTimeout(150);
+check("首页有「打开通知」提示条（说清楚通知什么）", await M.locator("#view-today .notify-banner").isVisible() && /有人点|家里人点/.test(await M.locator("#view-today .notify-banner").innerText()));
 // 我的：换人、反馈
 await M.click("#nav-profile");
+await M.locator("#notify-sec .sheet-cta").click();
+await M.waitForTimeout(600);
+check("打开通知：手机订阅交给后台（记着是妈妈）", pushSubs.some((p) => p.who === "mom" && p.enable === true && /push.example/.test(p.sub.endpoint)), JSON.stringify(pushSubs).slice(0, 160));
+check("打开后马上发一条试试，「我的」里显示已打开", notifyCalls.some((c) => c.task === "test" && c.who === "mom") && /已经打开/.test(await M.locator("#notify-sec").innerText()));
+check("打开后首页提示条不见了", !(await M.locator("#view-today .notify-banner").isVisible()));
 await M.screenshot({ path: `${SHOTS}/08-profile.png` });
 check("「我的」页有图片来源", /图片来源/.test(await M.locator("#credits-sec").innerText()));
 check("「我的」页有发给家里人的链接", (await M.locator("#share-sec .share-row").count()) === 4);

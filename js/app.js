@@ -1983,6 +1983,117 @@
     if (ui.me) u.searchParams.set("me", ui.me);
     try { history.replaceState(null, "", u.pathname + "?" + u.searchParams.toString()); } catch (e) {}
   }
+  // =====================================================================
+  //  通知（Web Push）：妈妈——有人点菜、改在不在家、定早饭；家里人——妈妈定了晚饭、晚上提醒点早饭
+  //  iPhone 要先「加到主屏幕」，从主屏幕打开，才能打开通知
+  // =====================================================================
+  var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  var isStandalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  var notify = { state: "checking", sub: null };
+  function pushSupported() { return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window; }
+  function notifyFn(task, payload) {
+    if (!S.household()) return Promise.reject(new Error("local"));
+    return fetch(CFG.supabaseUrl + "/functions/v1/mp-notify", {
+      method: "POST", headers: { "Content-Type": "application/json", apikey: CFG.supabaseKey },
+      body: JSON.stringify(Object.assign({ h: S.household(), task: task }, payload || {}))
+    }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); });
+  }
+  function swReg() {
+    if (!swReg.p) swReg.p = navigator.serviceWorker.register("sw.js").then(function () { return navigator.serviceWorker.ready; });
+    return swReg.p;
+  }
+  function b64urlToBytes(s) {
+    s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "=";
+    var raw = atob(s), out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  // 现在是什么情况：unsupported / need-home（iPhone 还没加到主屏幕）/ denied / on / off
+  function checkNotify() {
+    if (!pushSupported()) { notify.state = isIOS && !isStandalone ? "need-home" : "unsupported"; renderNotify(); return Promise.resolve(); }
+    if (Notification.permission === "denied") { notify.state = "denied"; renderNotify(); return Promise.resolve(); }
+    return swReg().then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+      notify.sub = sub;
+      notify.state = sub && Notification.permission === "granted" ? "on" : "off";
+      // 已经打开的：每次打开 App 再报一次（换了人、地址变了都能对上）
+      if (notify.state === "on" && ui.me) S.call("mp_push_sub", { who: ui.me, sub: sub.toJSON(), enable: true }).catch(function () {});
+      renderNotify();
+    }).catch(function () { notify.state = "unsupported"; renderNotify(); });
+  }
+  function enableNotify() {
+    if (notify.state === "need-home") { showHomeScreenHelp(); return; }
+    if (!pushSupported()) { toast("这部手机打不开通知"); return; }
+    // iPhone 要求：点了按钮马上问，中间不能先做别的
+    var perm = Notification.requestPermission();
+    Promise.resolve(perm).then(function (p) {
+      if (p !== "granted") { notify.state = p === "denied" ? "denied" : "off"; renderNotify(); throw new Error("no-permission"); }
+      return Promise.all([swReg(), notifyFn("key")]);
+    }).then(function (r) {
+      var reg = r[0], key = r[1].key;
+      return reg.pushManager.getSubscription().then(function (old) {
+        return old || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(key) });
+      });
+    }).then(function (sub) {
+      notify.sub = sub;
+      return S.call("mp_push_sub", { who: ui.me, sub: sub.toJSON(), enable: true });
+    }).then(function () {
+      notify.state = "on"; renderNotify();
+      toast("通知打开了！马上发一条试试");
+      notifyFn("test", { who: ui.me }).catch(function () {});
+    }).catch(function (e) {
+      if (e && e.message === "no-permission") { toast(notify.state === "denied" ? "通知被关掉了，要到手机「设置」里打开" : "没打开通知"); return; }
+      toast("通知没打开成功，等一下再试");
+    });
+  }
+  function disableNotify() {
+    var sub = notify.sub;
+    if (!sub) { notify.state = "off"; renderNotify(); return; }
+    S.call("mp_push_sub", { who: ui.me, sub: sub.toJSON(), enable: false }).catch(function () {});
+    sub.unsubscribe().catch(function () {}).then(function () { notify.sub = null; notify.state = "off"; renderNotify(); toast("通知关掉了"); });
+  }
+  function showHomeScreenHelp() {
+    sheet.innerHTML = "<h3>先把 App 加到主屏幕</h3>" + '<p class="sheet-sub">iPhone 要从主屏幕打开，才能收通知。</p>' +
+      '<div class="read-panel" style="font-size:18px;line-height:1.8">① 用 Safari 打开这个 App<br>② 点下面中间的「分享」按钮（方块带向上箭头）<br>③ 往下找「添加到主屏幕」，点「添加」<br>④ 回到主屏幕，点「早饭晚饭」打开<br>⑤ 到「我的」→「打开通知」</div>';
+    sheet.appendChild(closeBtn("知道了"));
+    openSheet();
+  }
+  function notifyWhat() {
+    return isMom() ? "家里人点了想吃的、改了在不在家、定了早饭，马上告诉你" : "妈妈定了晚饭马上告诉你；晚上 9 点半提醒你点明天早饭";
+  }
+  function renderNotify() {
+    var box = $("notify-sec");
+    if (box && ui.me) {
+      box.innerHTML = '<h2 class="sec-title"><span class="sec-ic" aria-hidden="true">🔔</span>通知</h2>';
+      var st = notify.state;
+      box.appendChild(el("div", "assist-hint", esc(notifyWhat()) + "。"));
+      if (st === "on") {
+        box.appendChild(el("div", "home-sum", "🔔 通知已经打开了 ✓"));
+        box.appendChild(btn("sheet-close", "发一条试试", function () { notifyFn("test", { who: ui.me }).then(function (r) { toast(r.sent ? "发了，看看手机上面" : "没发出去，关掉再打开一次"); }, function () { toast("没发出去，等一下再试"); }); }));
+        box.appendChild(btn("sheet-close", "关掉通知", disableNotify));
+      } else if (st === "need-home") {
+        box.appendChild(btn("sheet-cta", "🔔 怎么打开通知", showHomeScreenHelp));
+      } else if (st === "denied") {
+        box.appendChild(el("div", "home-sum away", "通知被关掉了。到手机「设置」→「通知」→「早饭晚饭」里打开。"));
+      } else if (st === "unsupported") {
+        box.appendChild(el("div", "home-sum away", "这部手机或浏览器收不了通知。"));
+      } else if (st === "off") {
+        box.appendChild(btn("sheet-cta", "🔔 打开通知", enableNotify));
+      }
+    }
+    // 首页上面的提示条：还没打开、也没点过「以后再说」才显示
+    var hide = LS.get("mp:notifyHide", 0);
+    document.querySelectorAll(".notify-banner").forEach(function (b) {
+      var show = ui.me && (notify.state === "off" || notify.state === "need-home") && !(hide && Date.now() - hide < 7 * 86400000);
+      b.hidden = !show;
+      if (!show) { b.innerHTML = ""; return; }
+      b.innerHTML = '<div class="nb-txt"><b>🔔 打开通知</b><span>' + esc(notifyWhat()) + "</span></div>";
+      var row = el("div", "nb-acts");
+      row.appendChild(btn("nb-yes", notify.state === "need-home" ? "怎么打开" : "打开", enableNotify));
+      row.appendChild(btn("nb-no", "以后再说", function () { LS.set("mp:notifyHide", Date.now()); renderNotify(); }));
+      b.appendChild(row);
+    });
+  }
+
   function setMe(pid) {
     ui.me = pid; LS.set("mp:me", pid);
     S.setWho(pid);
@@ -1991,6 +2102,7 @@
     $("voice-fab").hidden = false;
     showView("today");
     renderAll();
+    checkNotify();
   }
   function showWelcome() {
     var g = $("welcome-grid"); g.innerHTML = "";
@@ -2066,6 +2178,7 @@
     ready.then(function () { maybeSeed(); if (S.status() === "ok" && isMom()) pruneLogs(); queueRender(); setTimeout(queueAiPhotos, 3000); });
     S.onChange(function () { setTimeout(queueAiPhotos, 2000); });
     loadWeather();
+    if (me) checkNotify();
     // 到了晚上 7 点，「照着做」「本周菜单」从明天开始
     // 过了中午 12 点，家里人的「我的早饭」从明天开始
     var lastBase = cookBaseIso(), lastBf = bfDays()[0];

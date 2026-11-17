@@ -227,3 +227,13 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
 .pick-card.picked { border-color: #2e7d5b !important; box-shadow: 0 0 0 2px #2e7d5b inset, 0 6px 14px rgba(46,125,91,.18) !important; }
 .pick-card.picked .pk-from { color: #2e7d5b; font-weight: 800; }
 .sheet-cta:disabled { opacity: .5; }
+
+/* 打开通知的提示条 */
+.notify-banner { margin: 0 0 14px; padding: 12px 14px; border-radius: 18px; background: linear-gradient(135deg,#fff6e0,#ffe9c4); border: 2px solid #f0c078; box-shadow: var(--warm-shadow); }
+.notify-banner .nb-txt b { display: block; font-size: 19px; color: #8a4a00; }
+.notify-banner .nb-txt span { display: block; font-size: 15px; color: #6f5434; margin-top: 2px; line-height: 1.5; }
+.notify-banner .nb-acts { display: flex; gap: 10px; margin-top: 10px; }
+.notify-banner button { flex: 1; min-height: 48px; border-radius: 14px; font-family: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
+.notify-banner .nb-yes { border: none; background: linear-gradient(135deg,#3a8a68,#2e7d5b); color: #fff; }
+.notify-banner .nb-no { border: 1.5px solid #e0d3bf; background: #fff; color: #6f6154; flex: 0 0 auto; padding: 0 16px; }
+#notify-sec .home-sum { margin: 10px 0 4px; }
