@@ -275,11 +275,13 @@ check("家里人屏也有语音助手", await C.locator("#voice-fab").isVisible(
 
 // 6. 买菜：「自己加的」默认折起；Weee 按钮 44px、16.5px、橙色
 await M.click("#nav-buy");
-check("「自己加的」默认折起", !(await M.locator("#custom-body").isVisible()) && (await M.locator("#custom-toggle").innerText()).includes("展开"));
+check("「自己加的」默认折起", !(await M.locator("#custom-body").isVisible()) && (await M.locator("#custom-toggle").getAttribute("aria-expanded")) === "false");
 const tog = await M.locator("#custom-toggle").evaluate((e) => { const s = getComputedStyle(e); return { h: e.getBoundingClientRect().height, f: s.fontSize }; });
 check("展开按钮 46px 高、16px 字", Math.round(tog.h) === 46 && tog.f === "16px", JSON.stringify(tog));
+const foldLooks = await M.evaluate(() => [...document.querySelectorAll("button.fold-btn, #custom-toggle, #buy-toggle, #bf-fold")].filter((b) => b.offsetParent).map((b) => getComputedStyle(b).fontSize + "|" + getComputedStyle(b).borderRadius));
+check("所有折叠是同一个样子", foldLooks.length >= 2 && new Set(foldLooks).size === 1, foldLooks.join(" "));
 await M.click("#custom-toggle");
-check("点「展开 ▼」才出现常买和输入框", await M.locator("#staple-row").isVisible() && await M.locator("#custom-name").isVisible());
+check("点开才出现常买和输入框", await M.locator("#staple-row").isVisible() && await M.locator("#custom-name").isVisible());
 const weee = M.locator("#buy-list .weee-link").first();
 const ws = await weee.evaluate((e) => { const s = getComputedStyle(e); return { h: e.getBoundingClientRect().height, f: s.fontSize, w: s.fontWeight, bg: s.backgroundImage, href: e.href }; });
 check("Weee 按钮 44px 高、16.5px 粗字、橙色", Math.round(ws.h) === 44 && ws.f === "16.5px" && +ws.w >= 800 && /240, 115, 42/.test(ws.bg), JSON.stringify({ h: ws.h, f: ws.f, w: ws.w }));
@@ -297,7 +299,7 @@ const before = +(await M.locator("#buy-badge").innerText() || 0);
 await egg.locator(".nn-btn").click(); await M.waitForTimeout(150);
 check("每样料都有「不用买」，点了就变灰、不算进没买的", /不用买/.test(await M.locator("#buy-list .buy-row.skipped").first().innerText()) && +(await M.locator("#buy-badge").innerText() || 0) === before - 1);
 await M.click("#buy-toggle"); await M.waitForTimeout(100);
-check("「做菜要买的」能折起来", !(await M.locator("#buy-list").isVisible()) && await M.locator("#buy-fold-sum").isVisible());
+check("「做菜要买的」能折起来，折起时写着几样没买", !(await M.locator("#buy-list").isVisible()) && /样/.test(await M.locator("#buy-toggle").innerText()));
 await M.click("#buy-toggle"); await M.waitForTimeout(100);
 check("同步：小陈的买菜页也看到牛奶、五花肉已买", /牛奶/.test(await C.locator("#custom-list").innerText()) && /买好了/.test(await C.locator("#buy-list .buy-row", { hasText: "五花肉" }).innerText()));
 await M.screenshot({ path: `${SHOTS}/05-buy.png`, fullPage: false });

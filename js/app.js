@@ -593,11 +593,17 @@
       box.appendChild(g);
     });
   }
+  // 所有折叠都用同一个样子：整行一条，收起时左边写里面有什么，右边 ▼；展开后写「收起」，右边 ▲
+  function setFold(b, open, closedHTML, openText) {
+    b.classList.add("fold-btn");
+    b.innerHTML = '<span class="fb-txt">' + (open ? esc(openText || "收起") : closedHTML) + '</span><span class="fb-ic" aria-hidden="true">' + (open ? "▲" : "▼") + "</span>";
+    b.setAttribute("aria-expanded", String(!!open));
+  }
+  function foldBtn(open, closedHTML, openText, onClick) { var b = btn("fold-btn", "", onClick); setFold(b, open, closedHTML, openText); return b; }
   function renderMomBreakfast() {
     var all = bfList(ui.planDay), n = all.filter(function (it) { return it.kind !== "skip"; }).length;
     var fb = $("bf-fold");
-    fb.innerHTML = "🥣 " + esc(dayName(ui.planDay)) + "的早饭 · " + (n ? n + " 份，大家自己定的" : "不用做") + (ui.momBfOpen ? " ▲" : " ▼");
-    fb.setAttribute("aria-expanded", String(ui.momBfOpen));
+    setFold(fb, ui.momBfOpen, "🥣 " + esc(dayName(ui.planDay)) + "的早饭 · " + (n ? n + " 份，大家自己定的" : "不用做"), "收起早饭");
     $("breakfast").hidden = !ui.momBfOpen;
     var box = $("breakfast"); box.innerHTML = "";
     var card = el("div", "bf-card", '<div class="plan-meal">早饭 · 加热就行</div>');
@@ -844,7 +850,7 @@
     hb.appendChild(el("div", "home-sum" + (awayDays.length ? " away" : ""), awayDays.length
       ? "🚶 " + esc(awayDays.map(function (id) { return dayName(id); }).join("、")) + "不在家吃，其他天都在家"
       : "🏠 这几天都在家吃饭 ✓"));
-    hb.appendChild(btn("fold-btn", ui.homeOpen ? "收起 ▲" : (awayDays.length ? "改一下哪天不在家 ▼" : "有几天不在家？点这里选 ▼"), function () { ui.homeOpen = !ui.homeOpen; renderFamily(); }));
+    hb.appendChild(foldBtn(ui.homeOpen, awayDays.length ? "改一下哪天不在家" : "有几天不在家？点这里选", "收起", function () { ui.homeOpen = !ui.homeOpen; renderFamily(); }));
     if (ui.homeOpen) {
       var grid = el("div", "home-days big");
       days().forEach(function (id) {
@@ -872,12 +878,7 @@
     bft.hidden = off;
     var homeDays = bfDays().filter(function (id) { return isHome(id, me); });
     var picked = homeDays.filter(function (id) { return bfPick(id, me); });
-    if (!off) {
-      var sum = el("div", "fold-sum", picked.length === homeDays.length ? "这几天都点好了 ✓" : "在家 " + homeDays.length + " 天，还有 " + (homeDays.length - picked.length) + " 天没点（没点的默认鸡蛋三明治）");
-      if (!ui.famBfOpen) sw.appendChild(sum);
-    }
-    bft.textContent = ui.famBfOpen ? "收起 ▲" : "展开 ▼";
-    bft.setAttribute("aria-expanded", String(ui.famBfOpen));
+    setFold(bft, ui.famBfOpen, picked.length === homeDays.length ? "这几天的早饭都点好了 ✓" : "在家 " + homeDays.length + " 天，还有 " + (homeDays.length - picked.length) + " 天没点（没点的默认鸡蛋三明治）", "收起");
     $("fam-bf-body").hidden = off || !ui.famBfOpen;
     var bf = $("fam-breakfast"); bf.innerHTML = "";
     bfDays().forEach(function (id) {
@@ -1043,7 +1044,7 @@
     if (!mine.length) card.appendChild(el("div", null, '<div style="font-size:17px;color:#8a7967">这天不吃早饭。</div>'));
     mine.forEach(function (it) { card.appendChild(bfRow(it)); });
     if (others.length) {
-      card.appendChild(btn("fold-btn", (ui.othersBfOpen ? "收起其他人的早饭 ▲" : "其他人的早饭（" + others.length + " 份）▼"), function () { ui.othersBfOpen = !ui.othersBfOpen; renderFamilyToday(); }));
+      card.appendChild(foldBtn(ui.othersBfOpen, "其他人的早饭（" + others.length + " 份）", "收起其他人的早饭", function () { ui.othersBfOpen = !ui.othersBfOpen; renderFamilyToday(); }));
       if (ui.othersBfOpen) others.forEach(function (it) { card.appendChild(bfRow(it)); });
     }
     box.appendChild(card);
@@ -1056,8 +1057,7 @@
     if (open && (!ui.guestDay || days().indexOf(ui.guestDay) === -1)) ui.guestDay = firstSaturday();
     $("guest-body").hidden = !open;
     var b = $("guest-fold-btn");
-    b.setAttribute("aria-expanded", String(open));
-    b.innerHTML = open ? "收起 ▲" : "＋ 有客人来，点这里<small>平时不用管</small>";
+    setFold(b, open, "＋ 有客人来，点这里（平时不用管）", "收起");
     renderGuests();
   }
   function renderGuests() {
@@ -1491,10 +1491,7 @@
     var box = $("buy-list"); box.innerHTML = "";
     var need = items.filter(function (it) { return !it.pantry && !noNeed(it.name); });
     var togB = $("buy-toggle");
-    togB.textContent = ui.buyOpen ? "收起 ▲" : "展开 ▼";
-    togB.setAttribute("aria-expanded", String(ui.buyOpen));
-    $("buy-fold-sum").hidden = ui.buyOpen;
-    $("buy-fold-sum").textContent = items.length ? "一共 " + items.length + " 样，还有 " + need.filter(function (it) { return !boughtRecently(it.name); }).length + " 样没买" : "还没定菜";
+    setFold(togB, ui.buyOpen, items.length ? "一共 " + items.length + " 样，还有 " + need.filter(function (it) { return !boughtRecently(it.name); }).length + " 样没买" : "还没定菜", "收起");
     box.hidden = !ui.buyOpen;
     if (!items.length) box.appendChild(el("div", "wish-none", "还没定菜，定了就会出现在这里。"));
     // 顺序：要买的 → 调料 → 不用买的
@@ -1539,9 +1536,9 @@
   $("custom-toggle").addEventListener("click", function () {
     ui.customOpen = !ui.customOpen;
     $("custom-body").hidden = !ui.customOpen;
-    $("custom-toggle").textContent = ui.customOpen ? "收起 ▲" : "展开 ▼";
-    $("custom-toggle").setAttribute("aria-expanded", String(ui.customOpen));
+    setFold($("custom-toggle"), ui.customOpen, "＋ 自己加东西", "收起");
   });
+  setFold($("custom-toggle"), false, "＋ 自己加东西", "收起");
   $("custom-voice").innerHTML = MIC_SVG;
   $("custom-voice").addEventListener("click", function () { startVoice($("custom-name")); });
   $("custom-add-btn").addEventListener("click", function () {
