@@ -1,9 +1,12 @@
 // 早饭晚饭的 AI 助手（Supabase Edge Function）
 // - task "recipe"：给一道家常菜写配料（带份量）和做法
 // - task "intent"：把一句话（语音转的字）变成 App 里要做的事
-// 需要在 Supabase 后台 Edge Functions → Secrets 里设 ANTHROPIC_API_KEY。
+// 用阿里云百炼 Qwen 的 Token Plan（OpenAI 兼容接口）。
+// 在 Supabase 后台 Edge Functions → Secrets 里设：
+//   QWEN_API_KEY   必填：Token Plan 的 API Key
+//   QWEN_BASE_URL  可选：默认新加坡 Token Plan；国内的 key 用 https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+//   QWEN_MODEL     可选：默认 qwen3.7-plus，以 Token Plan 控制台里显示的模型名为准
 // 只接受带正确家庭密钥（h）的请求。
-import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const CORS = {
@@ -14,7 +17,31 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-const MODEL = "claude-opus-5-5";
+const BASE_URL = (Deno.env.get("QWEN_BASE_URL") || "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1").replace(/\/+$/, "");
+const MODEL = Deno.env.get("QWEN_MODEL") || "qwen3.7-plus";
+
+// 让模型只回 JSON：在提示里给出格式，再用 response_format json_object 兜住
+async function askJSON(system: string, user: string, schema: unknown) {
+  const res = await fetch(BASE_URL + "/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + Deno.env.get("QWEN_API_KEY") },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system + "\n\n只输出一个 JSON 对象，不要输出其他文字。JSON 必须符合这个 JSON Schema：\n" + JSON.stringify(schema) },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+  const txt = await res.text();
+  if (!res.ok) throw Object.assign(new Error(txt.slice(0, 300)), { status: res.status });
+  const content = JSON.parse(txt)?.choices?.[0]?.message?.content || "";
+  const m = String(content).match(/\{[\s\S]*\}/);
+  if (!m) throw Object.assign(new Error("no json in reply"), { status: 502 });
+  return JSON.parse(m[0]);
+}
 
 const RECIPE_SCHEMA = {
   type: "object",
@@ -81,8 +108,7 @@ Deno.serve(async (req) => {
   const { data: home } = await sb.from("mp_households").select("id").eq("id", h).maybeSingle();
   if (!home) return json({ error: "unknown household" }, 403);
 
-  if (!Deno.env.get("ANTHROPIC_API_KEY")) return json({ error: "no_key" }, 503);
-  const client = new Anthropic();
+  if (!Deno.env.get("QWEN_API_KEY")) return json({ error: "no_key" }, 503);
 
   let system: string, user: string, schema: Record<string, unknown>;
   if (body.task === "recipe") {
@@ -113,18 +139,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const res: any = await client.beta.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      output_config: { effort: "low", format: { type: "json_schema", schema } },
-      system,
-      messages: [{ role: "user", content: user }],
-    } as any);
-    if (res.stop_reason === "refusal") return json({ error: "refused" }, 422);
-    const text = (res.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
-    return json(JSON.parse(text));
+    const out: any = await askJSON(system, user, schema);
+    if (body.task === "recipe") {
+      out.ings = (Array.isArray(out.ings) ? out.ings : []).map(String).slice(0, 12);
+      out.steps = (Array.isArray(out.steps) ? out.steps : []).map(String).slice(0, 8);
+      out.prep = String(out.prep || "");
+      if (!["fish", "meat", "egg", "tofu", "veg", "staple"].includes(out.cat)) out.cat = "veg";
+    } else {
+      out.actions = (Array.isArray(out.actions) ? out.actions : []).filter((a: any) => a && ["home", "wish", "dinner", "breakfast", "buy", "bf_switch"].includes(a.type));
+      out.reply = String(out.reply || "");
+    }
+    return json(out);
   } catch (e) {
     const status = (e as any)?.status;
     console.error("mp-ai error", status, (e as Error)?.message);
