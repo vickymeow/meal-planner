@@ -73,6 +73,9 @@ Supabase 后台 → 项目 `breakfast-decider` → **Edge Functions → Secrets*
 - 语音听写：`qwen-audio-3.0-asr-flash`（可用 `QWEN_ASR_MODEL` 指定）。手机录音后在网页里转成 16k WAV 再送去
 - 检查能不能用：给 `mp-ai` 发 `{"h": 家庭密钥, "task": "diag"}`，会回用的是哪把 key、哪个地址、哪个模型（不回 key 本身）
 
+- **菜品照片**：没照片的菜，App 会自动请阿里云**通义万相**（`wan2.2-t2i-flash`）画一张写实菜品照：先让 Qwen 描述这道菜的样子再画，缩到 720 宽 JPEG（约 100KB），存进 Supabase 存储 `mp-photos`，写进家里的同步库。Token Plan 里没有生图模型，所以这部分走按量付费的 key（代金券抵扣），大约几分钱一张。做法页可以「🎨 换一张 AI 图」。关掉：`js/config.js` 里 `aiPhotos: false`
+- **读给我听**：用 Qwen 语音合成（`qwen3-tts-flash`，女声 Cherry，走 Token Plan）；连不上就用手机自带的声音
+
 没有 key 或连不上时 App 照常能用：语音助手用本地规则听懂常见说法；说话退回浏览器自带的识别或键盘上的 🎤。
 
 ## 可以再配的

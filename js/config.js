@@ -10,5 +10,7 @@ window.MP_CONFIG = {
   pollMs: 8000,
   // 自动配图（Pollinations）先关掉：免费额度用完时它会返回一张写着「限制次数」的图。没有照片的菜显示暖色方块。
   // 家里人可以在每道菜的做法页点「换照片」换成自己拍的。
-  autoPhotos: false
+  autoPhotos: false,
+  // 没有照片的菜，请阿里云文生图（通义万相）画一张写实菜品照；先用 Token Plan，不行再用按量付费的 key（代金券抵扣）
+  aiPhotos: true
 };

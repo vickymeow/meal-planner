@@ -183,6 +183,44 @@
     var prompt = name + "，中式家常菜，Chinese home cooking dish, appetizing food photo, served in a bowl or plate, top-down, warm natural light, no text";
     return "https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt) + "?width=640&height=480&nologo=true&seed=" + hash(name);
   }
+  var photoQueue = [], photoBusy = false;
+  var DEVICE = LS.get("mp:dev", null) || (function () { var d = rnd() + rnd(); LS.set("mp:dev", d); return d; })();
+  function needsPhoto(name) {
+    var p = S.get("photo:" + name);
+    if (p && p.src) return false;
+    if ((window.MP_PHOTOS || {})[name]) return false;
+    // 正在生成（别的手机也算）或刚失败过：先不重复要
+    if (p && p.pending && Date.now() - (p.t || 0) < 3 * 60 * 1000) return false;
+    if (p && p.failed && Date.now() - (p.t || 0) < 24 * 3600 * 1000) return false;
+    return true;
+  }
+  function queueAiPhotos() {
+    if (!S.household() || S.status() !== "ok" || CFG.aiPhotos === false) return;
+    allDishes().forEach(function (d) { if (needsPhoto(d.name) && photoQueue.indexOf(d.name) === -1) photoQueue.push(d.name); });
+    nextAiPhoto();
+  }
+  function nextAiPhoto() {
+    if (photoBusy) return;
+    var name = photoQueue.shift();
+    while (name && !needsPhoto(name)) name = photoQueue.shift();
+    if (!name) return;
+    photoBusy = true;
+    // 先认领：同步 → 写「我在画」→ 等一下再同步，标记还是自己的才画（几部手机同时开着也只画一次）
+    var me = DEVICE + ":" + Date.now();
+    function release() { photoBusy = false; setTimeout(nextAiPhoto, 1500); }
+    S.syncNow().then(function () {
+      if (!needsPhoto(name)) return release();
+      S.put("photo:" + name, { pending: true, t: Date.now(), dev: me });
+      return new Promise(function (res) { setTimeout(res, 2500); }).then(S.syncNow).then(function () {
+        var p = S.get("photo:" + name);
+        if (!p || p.dev !== me) return release();
+        var d = dish(name);
+        return ai("photo", { name: name, hint: d && d.ings ? d.ings.slice(0, 5).map(function (x) { return x.split(/\s+/)[0]; }).join("、") : "" })
+          .catch(function () {})
+          .then(function () { S.syncNow(); release(); });
+      });
+    });
+  }
   function photoSrc(name) {
     var p = S.get("photo:" + name);
     if (p && p.src && !failedImg[p.src]) return p.src;
@@ -656,18 +694,46 @@
       (guestCount(id) ? "，其中客人 " + guestCount(id) + " 位" : "") + "。\n早饭，加热就行：" + (bf || "不用做") + "。\n晚饭：" + (dn.length ? dn.join("、") : "还没定") + "。";
   }
   var reading = false;
+  var readAudio = null;
+  function stopReading() {
+    reading = false;
+    try { speechSynthesis.cancel(); } catch (e) {}
+    if (readAudio) { try { readAudio.pause(); } catch (e) {} }
+    $("read-btn").textContent = "🔊 再读一遍";
+  }
+  function phoneVoice(text) {
+    if (!window.speechSynthesis) { stopReading(); return; }
+    try {
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = "zh-CN"; u.rate = 0.9;
+      u.onend = stopReading;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    } catch (e) { stopReading(); }
+  }
   $("read-btn").addEventListener("click", function () {
     var b = $("read-btn"), panel = $("read-panel");
-    if (reading) { try { speechSynthesis.cancel(); } catch (e) {} reading = false; b.textContent = "🔊 再读一遍"; return; }
-    panel.hidden = false; panel.textContent = todayScript();
-    if (!window.speechSynthesis) return;
-    try {
-      var u = new SpeechSynthesisUtterance(todayScript());
-      u.lang = "zh-CN"; u.rate = 0.9;
-      u.onend = function () { reading = false; b.textContent = "🔊 再读一遍"; };
-      reading = true; b.textContent = "⏹ 停，别读了";
-      speechSynthesis.cancel(); speechSynthesis.speak(u);
-    } catch (e) { b.textContent = "🔊 再读一遍"; }
+    if (reading) { stopReading(); return; }
+    var text = todayScript();
+    panel.hidden = false; panel.textContent = text;
+    reading = true; b.textContent = "⏹ 停，别读了";
+    // iPhone 要在点按的那一下就「开」声音，之后才能放：先放一段无声的
+    if (!readAudio) { readAudio = new Audio(); readAudio.preload = "auto"; }
+    readAudio.onended = stopReading;
+    readAudio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=";
+    try { readAudio.play().catch(function () {}); } catch (e) {}
+    if (!S.household()) { phoneVoice(text); return; }
+    var done = false;
+    var fallback = setTimeout(function () { if (!done && reading) { done = true; phoneVoice(text); } }, 12000);
+    ai("tts", { text: text.replace(/\n/g, "") }).then(function (r) {
+      if (done || !reading) return;
+      done = true; clearTimeout(fallback);
+      readAudio.src = r.url;
+      var pr = readAudio.play();
+      if (pr && pr.catch) pr.catch(function () { if (reading) phoneVoice(text); });
+    }).catch(function () {
+      if (done || !reading) return;
+      done = true; clearTimeout(fallback); phoneVoice(text);
+    });
   });
 
   function showMode(mode) {
@@ -1085,7 +1151,11 @@
     }
     var row2 = el("div", "rec-acts");
     row2.appendChild(btn("mini-btn", "📷 换照片", function () { pickPhoto({ kind: "dish", id: name }); }));
-    if (S.get("photo:" + name)) row2.appendChild(btn("mini-btn", "用回默认图", function () { S.del("photo:" + name); openRecipe(name); }));
+    var ph = S.get("photo:" + name);
+    if (ph && ph.src && ph.ai) row2.appendChild(btn("mini-btn", "🎨 换一张 AI 图", function () {
+      S.del("photo:" + name); photoQueue.unshift(name); setTimeout(nextAiPhoto, 300); toast("在画新的，过一会儿就换上"); closeSheet();
+    }));
+    else if (ph && ph.src) row2.appendChild(btn("mini-btn", "用回默认图", function () { S.del("photo:" + name); openRecipe(name); }));
     row2.appendChild(btn("mini-btn", "✏️ 改配料做法", function () { openDishEditor(name); }));
     sheet.appendChild(row2);
     sheet.appendChild(closeBtn("知道了，回去"));
@@ -1842,7 +1912,8 @@
     keepUrl();
     if (!me) showWelcome();
     else { $("voice-fab").hidden = false; showView("today"); renderAll(); }
-    ready.then(function () { maybeSeed(); if (S.status() === "ok" && isMom()) pruneLogs(); queueRender(); });
+    ready.then(function () { maybeSeed(); if (S.status() === "ok" && isMom()) pruneLogs(); queueRender(); setTimeout(queueAiPhotos, 3000); });
+    S.onChange(function () { setTimeout(queueAiPhotos, 2000); });
     loadWeather();
     // 过了半夜，日子要往后挪
     var lastDay = todayIso();

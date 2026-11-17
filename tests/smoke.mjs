@@ -45,6 +45,7 @@ async function fakeSupabase(route) {
 
 const results = [];
 let lastAudio = null;
+const aiCalls = { photo: [], tts: 0 };
 function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); console.log((ok ? "✓ " : "✗ ") + name + (detail ? " — " + detail : "")); }
 
 const browser = await chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] }); // 假麦克风：录音测试用
@@ -61,6 +62,8 @@ async function phone(me) {
         { type: "home", date: day, dish: "", on: false, level: 2, qty: "" },
         { type: "wish", date: "", dish: "卤牛肉", on: true, level: 3, qty: "" } ] }) });
     }
+    if (b.task === "photo") { aiCalls.photo.push(b.name); return r.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: "photo_failed" }) }); }
+    if (b.task === "tts") { aiCalls.tts++; return r.fulfill({ contentType: "application/json", body: JSON.stringify({ url: "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=" }) }); }
     if (b.task === "transcribe") {
       const wav = Buffer.from(b.audio || "", "base64");
       lastAudio = { riff: wav.slice(0, 4).toString(), wave: wav.slice(8, 12).toString(), rate: wav.length > 28 ? wav.readUInt32LE(24) : 0, bytes: wav.length, mime: b.mime };
@@ -76,7 +79,7 @@ async function phone(me) {
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  page.on("console", (m) => { if (m.type() === "error" && !/pollinations|net::ERR_FAILED|status of 503/.test(m.text())) errors.push(m.text()); });
+  page.on("console", (m) => { if (m.type() === "error" && !/pollinations|net::ERR_FAILED|status of 50[23]/.test(m.text())) errors.push(m.text()); });
   await page.goto(`${BASE}/?h=${H}&me=${me}`);
   await page.waitForTimeout(600);
   return { page, errors, ctx };
@@ -192,6 +195,8 @@ check("一周里定了好几天的晚饭", decided === 2, decided + " 天");
 check("一顿能定好几道（妈妈自己决定）", (await M.locator("#dinner-plan .dish-row").count()) === 2);
 // 照着做：只看今天，大图大名，做好了 → 从最近想吃拿掉
 await M.click("#tab-cook");
+await M.click("#read-btn"); await M.waitForTimeout(500);
+check("读给我听：先请 Qwen 真人声音", aiCalls.tts >= 1 && /今天在家吃饭/.test(await M.locator("#read-panel").innerText()));
 check("照着做里有今天的红烧肉", /红烧肉/.test(await M.locator("#morning").innerText()));
 check("照着做里有今天的早饭（小陈的馄饨）", /馄饨/.test(await M.locator("#morning").innerText()));
 check("没点早饭的人默认鸡蛋三明治", /鸡蛋三明治/.test(await M.locator("#morning").innerText()));
@@ -397,6 +402,8 @@ const nWanted = await C.locator("#menu-list .menu-row.wanted").count();
 check("新加的菜排在上面（想吃的之后）", /酸菜鱼/.test(rowsNow[nWanted]), rowsNow.slice(0, nWanted + 1).join(" | ").replace(/\n/g, " "));
 await C.screenshot({ path: `${SHOTS}/09-menu-family.png` });
 
+check("没照片的菜自动请 AI 画，有自带照片的不画", aiCalls.photo.length > 0 && !aiCalls.photo.includes("红烧肉") && aiCalls.photo.includes("小酥肉"), aiCalls.photo.slice(0, 6).join("、"));
+check("同一道菜不重复请 AI 画", new Set(aiCalls.photo).size === aiCalls.photo.length, aiCalls.photo.length + " 次");
 check("妈妈手机没有脚本报错", mom.errors.length === 0, mom.errors.join(" | "));
 check("小陈手机没有脚本报错", chen.errors.length === 0, chen.errors.join(" | "));
 

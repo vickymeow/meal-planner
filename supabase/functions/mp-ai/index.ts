@@ -2,9 +2,11 @@
 // - task "recipe"：给一道家常菜写配料（带份量）和做法
 // - task "intent"：把一句话（语音转的字）变成 App 里要做的事
 // - task "transcribe"：录音转文字（主屏 App 里浏览器自带的语音识别常常用不了）
+// - task "photo"：给一道菜生成一张写实菜品照（通义万相 / Qwen-Image），存进 mp-photos，写进家里的同步库
+// - task "tts"：把一段话读出来（Qwen 语音合成，温柔女声），返回音频地址
 // - task "diag"：检查 key 和模型能不能用（不返回 key 本身）
 // 用阿里云百炼 Qwen（OpenAI 兼容接口）；连接方式照旧版早饭 App（云函数 breakfast）实测能用的写法：
-//   - key：QWEN_API_KEY 和旧版的 DASHSCOPE_API_KEY 都会试，Token Plan 的（sk-sp- 开头）优先
+//   - key：先用 Token Plan（DASHSCOPE_API_KEY，sk-sp- 开头，包月），用不了再用按量付费的 QWEN_API_KEY（阿里云代金券自动抵扣）
 //   - Token Plan 的 key 以 sk-sp- 开头，走 token-plan 专属地址；普通 key 走 dashscope-intl
 //   - 对话必须带 enable_thinking: false（Qwen3 默认会先思考，JSON 模式下容易出错）
 //   - 语音用 qwen-audio-3.0-asr-flash，走百炼原生接口，parameters.format 必填
@@ -122,6 +124,88 @@ async function transcribe(b64: string, mime: string): Promise<{ text: string } |
   return { error: "asr_failed", status: 502 };
 }
 
+// ---- 百炼原生接口（生图、语音合成）：先用 Token Plan（包月），用不了再用按量付费的 key（代金券抵扣）----
+function nativeTries() {
+  const out: { key: string; origin: string }[] = [];
+  for (const k of KEYS) for (const base of basesFor(k.key)) {
+    const origin = new URL(base).origin;
+    if (!out.some((x) => x.key === k.key && x.origin === origin)) out.push({ key: k.key, origin });
+  }
+  return out;
+}
+async function nativePost(t: { key: string; origin: string }, path: string, body: unknown, async = false) {
+  const headers: Record<string, string> = { authorization: "Bearer " + t.key, "content-type": "application/json" };
+  if (async) headers["X-DashScope-Async"] = "enable";
+  const r = await fetch(t.origin + path, { method: "POST", headers, body: JSON.stringify(body) });
+  const raw = await r.text();
+  let j: any = null; try { j = JSON.parse(raw); } catch { /* */ }
+  return { ok: r.ok, status: r.status, j, raw };
+}
+const IMG_SYNC = [env("QWEN_IMAGE_MODEL"), "qwen-image-plus", "qwen-image"].filter((x, i, a) => x && a.indexOf(x) === i);
+const IMG_ASYNC = ["wan2.2-t2i-flash", "wan2.2-t2i-plus", "wanx2.1-t2i-turbo"];
+let goodImg: { t: { key: string; origin: string }; model: string; async: boolean } | null = null;
+// 生成一张图，返回临时图片地址（24 小时内有效）
+async function genImage(prompt: string): Promise<string> {
+  const combos: { t: { key: string; origin: string }; model: string; async: boolean }[] = [];
+  if (goodImg) combos.push(goodImg);
+  for (const t of nativeTries()) {
+    for (const m of IMG_ASYNC) combos.push({ t, model: m, async: true });
+    for (const m of IMG_SYNC) combos.push({ t, model: m, async: false });
+  }
+  let last = "";
+  for (const c of combos) {
+    if (!c.async) {
+      const r = await nativePost(c.t, "/api/v1/services/aigc/multimodal-generation/generation", {
+        model: c.model, input: { messages: [{ role: "user", content: [{ text: prompt }] }] },
+        parameters: { size: "1328*1328", watermark: false, prompt_extend: false, negative_prompt: "文字, 水印, logo, 人手, 人脸, 卡通, 插画" },
+      });
+      const url = r.j?.output?.choices?.[0]?.message?.content?.find?.((x: any) => x.image)?.image;
+      if (r.ok && url) { goodImg = c; return url; }
+      last = `${c.model}@${new URL(c.t.origin).host}: ${r.status} ${r.raw.slice(0, 160)}`;
+    } else {
+      const r = await nativePost(c.t, "/api/v1/services/aigc/text2image/image-synthesis", {
+        model: c.model, input: { prompt, negative_prompt: "文字, 水印, logo, 人手, 人脸, 卡通, 插画" },
+        parameters: { size: "1024*768", n: 1, watermark: false },
+      }, true);
+      const id = r.j?.output?.task_id;
+      if (!r.ok || !id) { last = `${c.model}@${new URL(c.t.origin).host}: ${r.status} ${r.raw.slice(0, 160)}`; console.error("img failed", last); continue; }
+      for (let i = 0; i < 40; i++) { // 最多等 60 秒
+        await new Promise((res) => setTimeout(res, 1500));
+        const q = await fetch(c.t.origin + "/api/v1/tasks/" + id, { headers: { authorization: "Bearer " + c.t.key } });
+        const qj: any = await q.json().catch(() => ({}));
+        const st = qj?.output?.task_status;
+        if (st === "SUCCEEDED") { const url = qj.output.results?.[0]?.url; if (url) { goodImg = c; return url; } break; }
+        if (st === "FAILED" || st === "UNKNOWN" || st === "CANCELED") { last = `${c.model}: ${st} ${JSON.stringify(qj.output).slice(0, 160)}`; break; }
+      }
+    }
+    console.error("img failed", last);
+  }
+  throw new HttpErr(502, "image: " + last);
+}
+const TTS_MODELS = [env("QWEN_TTS_MODEL"), "qwen3-tts-flash", "qwen-tts"].filter((x, i, a) => x && a.indexOf(x) === i);
+const TTS_VOICE = env("QWEN_TTS_VOICE") || "Cherry";
+let goodTts: { t: { key: string; origin: string }; model: string } | null = null;
+async function tts(text: string): Promise<string> {
+  const combos: { t: { key: string; origin: string }; model: string }[] = [];
+  if (goodTts) combos.push(goodTts);
+  for (const t of nativeTries()) for (const m of TTS_MODELS) combos.push({ t, model: m });
+  let last = "";
+  for (const c of combos) {
+    const r = await nativePost(c.t, "/api/v1/services/aigc/multimodal-generation/generation", {
+      model: c.model, input: { text, voice: TTS_VOICE, language_type: "Chinese" },
+    });
+    const url = String(r.j?.output?.audio?.url || "").replace(/^http:\/\//, "https://"); // 网站是 https，音频也要 https
+    if (r.ok && url) { goodTts = c; return url; }
+    last = `${c.model}@${new URL(c.t.origin).host}: ${r.status} ${r.raw.slice(0, 160)}`;
+    console.error("tts failed", last);
+  }
+  throw new HttpErr(502, "tts: " + last);
+}
+async function sha1(s: string) {
+  const d = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+}
+
 const RECIPE_SCHEMA = {
   type: "object",
   properties: {
@@ -205,6 +289,52 @@ Deno.serve(async (req) => {
     if (b64.length > 8_000_000) return json({ error: "too_long" }, 413);
     const r = await transcribe(b64, String(body.mime || "audio/mp4"));
     return "text" in r ? json(r) : json({ error: r.error }, r.status);
+  }
+
+  // 生成菜品照：存进 mp-photos，再写进家里的同步库（全家手机都能看到）
+  if (body.task === "photo") {
+    const name = String(body.name || "").trim().slice(0, 30);
+    if (!name) return json({ error: "no name" }, 400);
+    const hint = String(body.hint || "").slice(0, 160);
+    // 先让 Qwen 用一句话描述这道菜做好后的样子（菜名不一定看得出来，比如小酥肉是炸的肉条）
+    let looks = "";
+    try {
+      looks = (await chat([{ role: "user", content: `用一句话（40 字以内）描述中国家常菜「${name}」做好后盛在盘里的样子：形状、颜色、配菜，只写看得见的。${hint ? "用料：" + hint : ""}` }], false)).replace(/\s+/g, " ").slice(0, 80);
+    } catch { /* 描述不出来就只用菜名 */ }
+    const prompt = `一道中国家常菜「${name}」的实拍照片。${looks || (hint ? "主要用料：" + hint + "。" : "")}盛在家里常用的盘子或碗里，放在木头餐桌上，暖色自然光，俯拍略带角度，看起来新鲜好吃，像手机随手拍的真实照片，画面里只有这道菜，没有文字。`;
+    try {
+      const tmp = await genImage(prompt);
+      const img = await fetch(tmp);
+      if (!img.ok) throw new HttpErr(502, "download " + img.status);
+      let type = img.headers.get("content-type") || "image/png";
+      let bytes = new Uint8Array(await img.arrayBuffer());
+      // 缩到 720 宽、转 JPEG，手机上加载快（一张约 80KB）；转不了就存原图
+      try {
+        // 用到才加载（纯 WebAssembly 版）；加载失败只是不压缩，不影响别的功能
+        const { Image } = await import("https://deno.land/x/imagescript@1.3.0/mod.ts");
+        const im = await Image.decode(bytes);
+        if (im.width > 720) im.resize(720, Image.RESIZE_AUTO);
+        bytes = await im.encodeJPEG(80);
+        type = "image/jpeg";
+      } catch (e) { console.error("compress failed", (e as Error).message); }
+      const path = `${h}/${await sha1(name + Date.now())}.${type.includes("jpeg") ? "jpg" : type.includes("webp") ? "webp" : "png"}`;
+      const up = await sb.storage.from("mp-photos").upload(path, bytes, { contentType: type, upsert: true });
+      if (up.error) throw new HttpErr(502, "upload " + up.error.message);
+      const src = sb.storage.from("mp-photos").getPublicUrl(path).data.publicUrl;
+      await sb.rpc("mp_push", { h, items: [{ id: "photo:" + name, data: { src, ai: true, t: Date.now() }, by: "ai" }] });
+      return json({ src, looks, bytes: bytes.length });
+    } catch (e) {
+      console.error("photo error", (e as Error).message);
+      await sb.rpc("mp_push", { h, items: [{ id: "photo:" + name, data: { failed: true, t: Date.now() }, by: "ai" }] });
+      return json({ error: "photo_failed" }, 502);
+    }
+  }
+  // 读出来：返回音频地址
+  if (body.task === "tts") {
+    const text = String(body.text || "").trim().slice(0, 500);
+    if (!text) return json({ error: "no text" }, 400);
+    try { return json({ url: await tts(text) }); }
+    catch (e) { console.error("tts error", (e as Error).message); return json({ error: "tts_failed" }, 502); }
   }
 
   let system: string, user: string, schema: Record<string, unknown>;
