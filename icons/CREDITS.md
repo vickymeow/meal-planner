@@ -1,7 +1,8 @@
-# 图标来源
+# 图标
 
-App 图标里的碗（🍜 Steaming Bowl）来自微软 Fluent Emoji 3D，
-经 [lobehub/fluent-emoji](https://github.com/lobehub/fluent-emoji)（npm 包 `@lobehub/fluent-emoji-3d`）取得，
-MIT 许可，可以免费使用、修改。底色和排版是我们自己加的。
+「爱心厨房」图标：家里人（Vicky）提供的图片，裁成正方形、把圆角外面补成同样的橙色底后生成各个尺寸。
 
-- Fluent Emoji：https://github.com/microsoft/fluentui-emoji （MIT License, Copyright (c) Microsoft Corporation）
+- `icon-512.png` / `icon-192.png`：安卓、浏览器
+- `apple-touch-icon.png`（180）：iPhone 主屏幕
+- `icon-maskable-512.png`：安卓会裁成圆形的版本（图缩到 80% 放中间）
+- `favicon.png`（64）：浏览器标签页
