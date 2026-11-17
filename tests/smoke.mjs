@@ -49,7 +49,7 @@ function tzWithLocalHour(lo, hi) {
   for (let k = -11; k <= 14; k++) { const lh = (h + k + 24) % 24; if (lh >= lo && lh <= hi) return k >= 0 ? `Etc/GMT-${k}` : `Etc/GMT+${-k}`; }
   return "UTC";
 }
-const DAY_TZ = tzWithLocalHour(10, 15), NIGHT_TZ = tzWithLocalHour(20, 22);
+const DAY_TZ = tzWithLocalHour(8, 11), NOON_TZ = tzWithLocalHour(13, 17), NIGHT_TZ = tzWithLocalHour(20, 22);
 const results = [];
 let lastAudio = null;
 const aiCalls = { photo: [], tts: 0 };
@@ -241,6 +241,14 @@ await M.locator(".sheet .g-day-btn").nth(5).click(); await M.waitForTimeout(200)
 check("做法页一次定进好几天", (await M.locator(".sheet .g-day-btn.on").count()) === 2 && /红烧带鱼/.test(await M.evaluate(() => JSON.stringify([4, 5].map((i) => { const d = new Date(); d.setDate(d.getDate() + i); const iso = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); return MPStore.get("dinner:" + iso); })))));
 await M.screenshot({ path: `${SHOTS}/04-recipe.png` });
 await M.locator(".sheet .sheet-close").last().click();
+await M.locator(".filter-chip", { hasText: "猪肉" }).click();
+const porkText = await M.locator("#menu-list").innerText();
+check("「猪肉」里有红烧肉，没有混进鱼", porkText.includes("红烧肉") && !porkText.includes("清蒸鲈鱼"));
+await M.locator(".filter-chip", { hasText: "青菜" }).click();
+const leafyText = await M.locator("#menu-list").innerText();
+check("「青菜」和瓜果分开：有青菜汤，没有番茄炒蛋", leafyText.includes("青菜汤") && !leafyText.includes("番茄炒蛋"));
+const chips = await M.locator(".filter-chip").allInnerTexts();
+check("分类有鸡鸭、虾蟹这些（不再全塞进「肉」）", chips.some((c) => /瓜果/.test(c)) && !chips.some((c) => /^🥩 肉$/.test(c.trim())), chips.join(" "));
 await M.locator(".filter-chip", { hasText: "全部" }).click();
 await M.waitForTimeout(300);
 const pork = M.locator(".menu-row", { hasText: "红烧肉" }).locator("img.dish-photo");
@@ -435,6 +443,20 @@ const nightFam = await phone("chen", NIGHT_TZ);
 await nightFam.page.click("#dtab-menu"); await nightFam.page.waitForTimeout(150);
 check("晚上 7 点后，本周菜单也从明天开始", /明天/.test(await nightFam.page.locator("#fam-day-strip .day-chip.on").innerText()));
 await nightFam.ctx.close();
+const noonFam = await phone("chen", NOON_TZ);
+await noonFam.page.waitForSelector("#view-family:not([hidden])");
+await noonFam.page.click("#fam-bf-toggle");
+const firstBf = await noonFam.page.locator("#fam-breakfast .d-row").first().innerText();
+check("过了中午 12 点，我的早饭从明天开始", /明天/.test(firstBf) && !/今天/.test(firstBf), NOON_TZ + " " + firstBf.replace(/\n/g, " "));
+check("「晚饭我想吃什么」改名了", /晚饭我想吃什么/.test(await noonFam.page.locator("#family-main").innerText()));
+check("每个功能区是一张有颜色的卡片", (await noonFam.page.locator("#view-family .card-sec").count()) >= 5);
+await noonFam.ctx.close();
+const amFam = await phone("chen", DAY_TZ);
+await amFam.page.waitForSelector("#view-family:not([hidden])");
+await amFam.page.click("#fam-bf-toggle");
+check("中午以前，我的早饭从今天开始", /今天/.test(await amFam.page.locator("#fam-breakfast .d-row").first().innerText()), DAY_TZ);
+await amFam.page.screenshot({ path: `${SHOTS}/fam-cards.png`, fullPage: false });
+await amFam.ctx.close();
 
 check("妈妈手机没有脚本报错", mom.errors.length === 0, mom.errors.join(" | "));
 check("小陈手机没有脚本报错", chen.errors.length === 0, chen.errors.join(" | "));

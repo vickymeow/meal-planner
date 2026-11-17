@@ -44,6 +44,9 @@
   // 做饭看的日子：晚上 7 点以后，今天的饭做完了，从明天开始排
   var CUTOFF_HOUR = 19;
   function cookBaseIso() { var n = new Date(); return iso(n.getHours() >= CUTOFF_HOUR ? addDays(n, 1) : n); }
+  // 早饭：过了中午 12 点，今天的早饭就过去了，从明天开始排
+  var BF_CUTOFF_HOUR = 12;
+  function bfDays() { var n = new Date(), b = n.getHours() >= BF_CUTOFF_HOUR ? addDays(n, 1) : n, out = []; for (var i = 0; i < 7; i++) out.push(iso(addDays(b, i))); return out; }
   function cookDays() { var b = fromIso(cookBaseIso()), out = []; for (var i = 0; i < 7; i++) out.push(iso(addDays(b, i))); return out; }
   function eveLabel(id) { var d = dayInfo(id); return d.rel === "今天" ? "今晚" : d.rel === "明天" ? "明晚" : d.rel === "后天" ? "后天晚上" : d.short + "晚上"; }
   function dayName(id) { var d = dayInfo(id); return d.rel || d.short; }
@@ -103,14 +106,43 @@
     var d = dish(name); if (d && d.steps && d.steps.length) return d.steps;
     return ["配料洗净切好，按家里人数准备。", "热锅下油，先炒主料，再放配菜和调味。", "尝一下咸淡，合适就出锅。"];
   }
-  function guessCat(name) {
-    if (/鱼/.test(name)) return "fish";
-    if (/鸡|鸭|肉|排骨|牛|羊|虾|翅/.test(name)) return "meat";
-    if (/蛋/.test(name)) return "egg";
-    if (/豆腐/.test(name)) return "tofu";
-    if (/面|饭|粥|饼|包|饺|馄饨|吐司|油条/.test(name)) return "staple";
-    return "veg";
+  // 菜的分类：先看菜名，菜名看不出来再看头两样主料
+  var TAG_RULES = [
+    ["beef", /牛|羊|肥牛/],
+    ["chicken", /鸡|鸭|鹅/],
+    ["fish", /鱼|带鱼/],
+    ["shrimp", /虾|蟹|贝|蛤|蚝|海鲜/],
+    ["egg", /蛋/],
+    ["tofu", /豆腐|豆干|腐竹|千张|豆浆|豆花/],
+    ["leafy", /青菜|白菜|菠菜|生菜|油麦|空心菜|芥兰|菜心|西兰花|韭菜|芹菜|苋菜|茼蒿|包菜|卷心菜|娃娃菜/],
+    ["root", /萝卜|土豆|茄子|番茄|西红柿|黄瓜|丝瓜|冬瓜|南瓜|苦瓜|山药|藕|玉米|洋葱|青椒|辣椒|豆角|四季豆|地三鲜|芋/],
+    ["soup", /汤|羹/],
+    ["staple", /饭|面|粉$|米粉|河粉|饺|包$|包子|馄饨|饼|粥|吐司|烧卖|三明治|糯米|油条|年糕|粽/]
+  ];
+  function tagsOf(text) {
+    // 先去掉会误判的词：鸡蛋不是鸡，鱼香不是鱼，虾皮只是配料，牛奶不是牛肉
+    var t = String(text || "").replace(/鸡蛋|蛋清|蛋黄/g, "蛋").replace(/鸡精|鸡粉|鱼香|鱼露|蒸鱼豉油|虾皮|虾米|牛奶|面粉|淀粉|粉丝|米粉蒸|蒸肉米粉/g, " ");
+    var out = [];
+    TAG_RULES.forEach(function (r) { if (r[1].test(t)) out.push(r[0]); });
+    // 猪肉：排骨、五花、肉末这些；名字里只说「肉」又不是牛羊鸡鸭的，也算猪肉
+    var meatOther = out.indexOf("beef") !== -1 || out.indexOf("chicken") !== -1;
+    if (/猪|五花|里脊|肉末|肉馅|肉丝|肉片|腊肠|香肠|火腿|培根|蹄|肘/.test(t) && !/牛里脊/.test(t) || (/排骨|肉/.test(t) && !meatOther)) out.unshift("pork");
+    return out;
   }
+  var OLD_CAT = { meat: "pork", veg: "leafy" };
+  function dishTags(d) {
+    if (!d) return [];
+    var tags = tagsOf(d.name);
+    var main = tags.filter(function (x) { return x !== "soup" && x !== "staple"; });
+    // 主食（面、饭、饺子）只从配料里补肉和海鲜，不补蛋和菜：不然乌冬面会跑到「蛋」里
+    var MEATY = ["pork", "beef", "chicken", "fish", "shrimp"];
+    var isStaple = tags.indexOf("staple") !== -1;
+    if (!main.length) (d.ings || []).slice(0, 2).forEach(function (i) { tagsOf(String(i).replace(/\s.*$/, "")).forEach(function (x) { if (tags.indexOf(x) === -1 && x !== "soup" && x !== "staple" && (!isStaple || MEATY.indexOf(x) !== -1)) tags.push(x); }); });
+    if (!tags.length && d.cat) tags.push(OLD_CAT[d.cat] || d.cat);
+    return tags;
+  }
+  function guessCat(name) { return tagsOf(name)[0] || "leafy"; }
+  function catLabel(id) { return (D.CATS.filter(function (c) { return c.id === id; })[0] || {}).label || ""; }
 
   function isHome(date, pid) { var h = S.get("home:" + date + ":" + pid); return !(h && h.v === false); }
   function homePeople(date) { return D.PEOPLE.filter(function (p) { return isHome(date, p.id); }); }
@@ -269,7 +301,7 @@
     return failedImg[a] ? null : a;
   }
   function tileHTML(name, cls) {
-    var d = dish(name), e = d && D.CAT_EMOJI[d.cat];
+    var d = dish(name), e = d && D.CAT_EMOJI[dishTags(d)[0]];
     return '<div class="dish-tile ' + (cls || "") + '" aria-hidden="true">' + esc(name.charAt(0) || e || "菜") + "</div>";
   }
   function dishMedia(name, cls) {
@@ -833,7 +865,7 @@
     swRow.appendChild(tg); sw.appendChild(swRow);
     var bft = $("fam-bf-toggle");
     bft.hidden = off;
-    var homeDays = days().filter(function (id) { return isHome(id, me); });
+    var homeDays = bfDays().filter(function (id) { return isHome(id, me); });
     var picked = homeDays.filter(function (id) { return bfPick(id, me); });
     if (!off) {
       var sum = el("div", "fold-sum", picked.length === homeDays.length ? "这几天都点好了 ✓" : "在家 " + homeDays.length + " 天，还有 " + (homeDays.length - picked.length) + " 天没点（没点的默认鸡蛋三明治）");
@@ -843,7 +875,7 @@
     bft.setAttribute("aria-expanded", String(ui.famBfOpen));
     $("fam-bf-body").hidden = off || !ui.famBfOpen;
     var bf = $("fam-breakfast"); bf.innerHTML = "";
-    days().forEach(function (id) {
+    bfDays().forEach(function (id) {
       var d = dayInfo(id), home = isHome(id, me), pick = bfPick(id, me);
       var label = !home ? '<span class="s-dish away">这天不在家</span>'
         : pick ? '<span class="s-dish">' + esc(pick) + "</span>" : '<span class="s-dish none">还没点</span>';
@@ -938,7 +970,7 @@
     openSheet();
   }
   function openOrderSheet() {
-    sheet.innerHTML = "<h3>" + esc(pname(ui.me)) + "，想吃什么？</h3>" + '<p class="sheet-sub">挑一道，再选有多想吃。</p>';
+    sheet.innerHTML = "<h3>" + esc(pname(ui.me)) + "，晚饭想吃什么？</h3>" + '<p class="sheet-sub">挑一道，再选有多想吃。</p>';
     var g = el("div", "pick-grid");
     var mine = wishes().filter(function (w) { return w.person === ui.me; }).map(function (w) { return w.dish; });
     menuFor("dinner").forEach(function (dd) {
@@ -1086,11 +1118,16 @@
     });
     var meal = ui.menuTab;
     var fbox = $("menu-filter"); fbox.innerHTML = "";
+    // 只显示这一页有菜的分类
+    var mealDishes = menuFor(meal), has = {};
+    mealDishes.forEach(function (d) { dishTags(d).forEach(function (t) { has[t] = (has[t] || 0) + 1; }); });
+    if (ui.filter !== "all" && !has[ui.filter]) ui.filter = "all";
     D.CATS.forEach(function (f) {
+      if (f.id !== "all" && !has[f.id]) return;
       fbox.appendChild(btn("filter-chip" + (ui.filter === f.id ? " on" : ""), f.label, function () { ui.filter = f.id; renderMenu(); }));
     });
     var box = $("menu-list"); box.innerHTML = "";
-    var list = menuFor(meal).filter(function (d) { return ui.filter === "all" || d.cat === ui.filter; });
+    var list = mealDishes.filter(function (d) { return ui.filter === "all" || dishTags(d).indexOf(ui.filter) !== -1; });
     if (ui.filter === "fish" && meal === "dinner") { var h = el("h2", "sec-title"); h.style.marginTop = "6px"; h.textContent = "鱼的做法都在这"; box.appendChild(h); }
     if (!list.length) box.appendChild(el("div", "wish-none", "这一类还没有菜"));
     list.forEach(function (d, idx) {
@@ -1170,7 +1207,7 @@
   function openRecipe(name) {
     var d = dish(name);
     sheet.innerHTML = '<div class="ing-head">' + dishMedia(name) + '<div><div class="ih-name">' + esc(name) + "</div>" +
-      (d && d.cat ? '<div style="font-size:15px;color:#5d4f3f">' + esc((D.CATS.filter(function (c) { return c.id === d.cat; })[0] || {}).label || "") + "</div>" : "") + "</div></div>";
+      (dishTags(d).length ? '<div style="font-size:15px;color:#5d4f3f">' + esc(dishTags(d).map(catLabel).join(" · ")) + "</div>" : "") + "</div></div>";
     var ul = el("ul", "ing-list");
     ingsFor(name).forEach(function (x) { ul.appendChild(el("li", null, esc(x))); });
     sheet.appendChild(ul);
@@ -1197,6 +1234,21 @@
     }));
     else if (ph && ph.src) row2.appendChild(btn("mini-btn", "用回默认图", function () { S.del("photo:" + name); openRecipe(name); }));
     row2.appendChild(btn("mini-btn", "✏️ 改配料做法", function () { openDishEditor(name); }));
+    // 做法太简单：请 AI 重新写一份详细的
+    row2.appendChild(btn("mini-btn", "✨ 做法写详细点", function (e) {
+      var b = e && e.currentTarget; if (b) { b.disabled = true; b.textContent = "✨ 正在写…"; }
+      var cur = dish(name) || { name: name, meal: "dinner" };
+      ai("recipe", { name: name, meal: cur.meal === "breakfast" ? "breakfast" : "dinner", ings: cur.ings || [], steps: cur.steps || [] }).then(function (r) {
+        if (!r.steps || !r.steps.length) throw new Error("empty");
+        S.put("dish:" + name, Object.assign({}, cur, { ings: r.ings && r.ings.length ? r.ings : cur.ings, steps: r.steps, prep: r.prep || cur.prep || "" }));
+        log("「" + name + "」的做法写详细了");
+        toast("写好了：" + name);
+        if (sheetIsOpen()) openRecipe(name);
+      }).catch(function (err) {
+        if (b) { b.disabled = false; b.textContent = "✨ 做法写详细点"; }
+        toast(err && err.code === "no_key" ? "AI 还没开通" : "AI 现在连不上，等一下再试");
+      });
+    }));
     sheet.appendChild(row2);
     sheet.appendChild(closeBtn("知道了，回去"));
     openSheet();
@@ -1211,7 +1263,7 @@
       button.disabled = false; button.textContent = old;
       toast("写好了，看看对不对，可以改");
     }
-    ai("recipe", { name: name, meal: meal }).then(fill).catch(function (e) {
+    ai("recipe", { name: name, meal: meal, ings: splitLines(ings.value), steps: String(steps.value).split(/\n+/).map(trim).filter(Boolean) }).then(fill).catch(function (e) {
       var rec = D.RECOMMENDS.filter(function (r) { return r.name === name; })[0];
       if (rec) { fill(rec); return; }
       button.disabled = false; button.textContent = old;
@@ -1331,12 +1383,16 @@
   // =====================================================================
   //  买菜
   // =====================================================================
-  var PANTRY = /^(盐|生抽|老抽|香醋|醋|白糖|糖|冰糖|淀粉|食用油|油|香油|料酒|蚝油|豆瓣酱|花椒|蒸鱼豉油|番茄酱|沙拉酱|果酱|芝麻|温水|水|干辣椒|沙姜)$/;
+  // 调料：家里一般都有，排在最后，默认不算「要买」
+  var PANTRY = /^(盐|生抽|老抽|香醋|陈醋|白醋|醋|白糖|细砂糖|糖|冰糖|淀粉|玉米淀粉|红薯淀粉|食用油|花生油|猪油|油|香油|料酒|蚝油|郫县豆瓣酱|豆瓣酱|甜面酱|黄豆酱|豆豉|腐乳汁|老干妈.*|花椒|花椒粒|花椒粉|蒸鱼豉油|番茄酱|沙拉酱|果酱|芝麻|白芝麻|熟白芝麻|干辣椒|沙姜|八角|桂皮|香叶|草果|五香粉|孜然粒|孜然粉|白胡椒粉|胡椒粉|黑胡椒碎|黑胡椒粉|鸡精|味精)$/;
+  // 水、冰块这些不用买，干脆不进清单
+  var NOT_BUY = /^(清水|热水|冷水|开水|温水|凉水|水|冰块|冰水|水淀粉)$/;
   function splitIng(s) { var m = String(s).match(/^(\S+)\s+(.+)$/); return m ? { name: m[1], qty: m[2] } : { name: String(s), qty: "" }; }
   function collectBuy() {
     var order = [], map = {};
     function add(ing, src, date) {
       var x = splitIng(ing);
+      if (NOT_BUY.test(x.name)) return;
       if (!map[x.name]) { map[x.name] = { name: x.name, qtys: [], srcs: [], first: date }; order.push(x.name); }
       var m = map[x.name];
       if (x.qty) m.qtys.push(x.qty);
@@ -1671,7 +1727,7 @@
   function ai(task, payload) {
     if (!S.household() || !window.fetch) return Promise.reject(new Error("local"));
     var ctl = window.AbortController ? new AbortController() : null;
-    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 25000);
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 60000);
     return fetch(CFG.supabaseUrl + "/functions/v1/mp-ai", {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: CFG.supabaseKey },
@@ -1956,10 +2012,12 @@
     S.onChange(function () { setTimeout(queueAiPhotos, 2000); });
     loadWeather();
     // 到了晚上 7 点，「照着做」「本周菜单」从明天开始
-    var lastBase = cookBaseIso();
+    // 过了中午 12 点，家里人的「我的早饭」从明天开始
+    var lastBase = cookBaseIso(), lastBf = bfDays()[0];
     setInterval(function () {
-      var b = cookBaseIso();
+      var b = cookBaseIso(), f = bfDays()[0];
       if (b !== lastBase) { lastBase = b; ui.cookDay = b; ui.famDay = b; queueRender(); }
+      if (f !== lastBf) { lastBf = f; queueRender(); }
     }, 60000);
     // 过了半夜，日子要往后挪
     var lastDay = todayIso();

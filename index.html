@@ -36,13 +36,13 @@
               <div class="day-meta" id="plan-meta"></div>
             </div>
 
-            <div class="sec">
-              <h2 class="sec-title">大家最近想吃 <span class="hint">家里人点的</span></h2>
+            <div class="sec card-sec acc-red">
+              <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">😋</span>大家最近想吃 <span class="hint">家里人点的</span></h2>
               <div id="wishes"></div>
             </div>
 
-            <div class="sec">
-              <h2 class="sec-title">妈妈定晚饭 <span class="hint">先点哪天</span></h2>
+            <div class="sec card-sec acc-green">
+              <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">🍽</span>妈妈定晚饭 <span class="hint">先点哪天</span></h2>
               <div class="day-strip" id="day-strip" role="tablist" aria-label="选日子"></div>
               <div class="sel-day" id="sel-day"></div>
               <div class="home-sec">
@@ -68,8 +68,8 @@
             <div class="today-line" id="today-line"></div>
           </div>
 
-          <div class="sec activity-sec">
-            <h2 class="sec-title">家里动态 <span class="hint">最新的在最上面</span></h2>
+          <div class="sec activity-sec card-sec acc-orange">
+            <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">💬</span>家里动态 <span class="hint">最新的在最上面</span></h2>
             <div class="activity-card"><div class="history-box"></div></div>
           </div>
           <div class="sec page-fb" data-fb-slot></div>
@@ -90,12 +90,12 @@
           </div>
 
           <div id="family-main">
-            <div class="sec">
-              <h2 class="sec-title">这几天在家吃饭吗 <span class="hint">不在家再点开</span></h2>
+            <div class="sec card-sec acc-green">
+              <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">🏠</span>这几天在家吃饭吗 <span class="hint">不在家再点开</span></h2>
               <div id="fam-home"></div>
             </div>
-            <div class="sec">
-              <h2 class="sec-title">我的早饭 <span class="hint">自己定，妈妈热</span>
+            <div class="sec card-sec acc-gold">
+              <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">🥣</span>我的早饭 <span class="hint">自己定，妈妈热</span>
                 <button type="button" class="custom-toggle" id="fam-bf-toggle" aria-expanded="false" aria-controls="fam-bf-body">展开 ▼</button>
               </h2>
               <div id="fam-bf-switch"></div>
@@ -103,13 +103,13 @@
                 <div id="fam-breakfast"></div>
               </div>
             </div>
-            <div class="sec">
-              <h2 class="sec-title">我想吃什么 <span class="hint">妈妈能看到</span></h2>
-              <button class="order-big primary" id="fam-order-btn" type="button">🍽 我想吃这个<small>挑一道，再选有多想吃</small></button>
+            <div class="sec card-sec acc-red">
+              <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">😋</span>晚饭我想吃什么 <span class="hint">妈妈能看到</span></h2>
+              <button class="order-big primary" id="fam-order-btn" type="button">🍽 晚饭我想吃这个<small>挑一道，再选有多想吃</small></button>
               <div id="fam-wishes" style="margin-top:12px"></div>
             </div>
-            <div class="sec">
-              <h2 class="sec-title">有客人来 <span class="hint">平时折起来</span> <span class="guest-summary" id="guest-summary" hidden></span></h2>
+            <div class="sec card-sec acc-blue">
+              <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">🎉</span>有客人来 <span class="hint">平时折起来</span> <span class="guest-summary" id="guest-summary" hidden></span></h2>
               <button class="guest-fold-btn" id="guest-fold-btn" type="button" aria-expanded="false" aria-controls="guest-body"></button>
               <div class="guest-collapsed-note" id="guest-collapsed-note" hidden></div>
               <div id="guest-body" hidden>
@@ -128,15 +128,15 @@
           </div>
 
           <div id="family-today" hidden>
-            <div class="sec">
-              <h2 class="sec-title">妈妈做什么 <span class="hint">先点哪天</span></h2>
+            <div class="sec card-sec acc-green">
+              <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">🍲</span>妈妈做什么 <span class="hint">先点哪天</span></h2>
               <div class="day-strip" id="fam-day-strip" role="tablist" aria-label="选日子"></div>
               <div id="fam-today-menu"></div>
             </div>
           </div>
 
-          <div class="sec activity-sec">
-            <h2 class="sec-title">家里动态 <span class="hint">最新的在最上面</span></h2>
+          <div class="sec activity-sec card-sec acc-orange">
+            <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">💬</span>家里动态 <span class="hint">最新的在最上面</span></h2>
             <div class="activity-card"><div class="history-box"></div></div>
           </div>
           <div class="sec page-fb" data-fb-slot></div>
@@ -172,8 +172,8 @@
           <div class="sec" style="margin-top:20px">
             <div class="buy-sum" id="buy-sum"></div>
           </div>
-          <div class="sec">
-            <h2 class="sec-title">自己加的 <span class="hint">牛奶、面包</span>
+          <div class="sec card-sec acc-gold">
+            <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">🥛</span>自己加的 <span class="hint">牛奶、面包</span>
               <button type="button" class="custom-toggle" id="custom-toggle" aria-expanded="false" aria-controls="custom-body">展开 ▼</button>
             </h2>
             <div id="custom-body" hidden>
@@ -196,15 +196,15 @@
             </div>
             <div id="custom-list"></div>
           </div>
-          <div class="sec">
-            <h2 class="sec-title">做菜要买的 <span class="hint">按定好的菜合并</span>
+          <div class="sec card-sec acc-green">
+            <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">🥬</span>做菜要买的 <span class="hint">按定好的菜合并</span>
               <button type="button" class="custom-toggle" id="buy-toggle" aria-expanded="true" aria-controls="buy-list">收起 ▲</button>
             </h2>
             <div class="fold-sum" id="buy-fold-sum" hidden></div>
             <div id="buy-list"></div>
           </div>
-          <div class="sec">
-            <h2 class="sec-title">这一周每天做什么</h2>
+          <div class="sec card-sec acc-blue">
+            <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">📅</span>这一周每天做什么</h2>
             <div id="week-list"></div>
           </div>
         </div>
@@ -218,13 +218,13 @@
             <div class="day-date" style="font-size:27px">我自己的页面</div>
           </div>
           <div class="sec"><div class="profile-card" id="profile-card"></div></div>
-          <div class="sec">
-            <h2 class="sec-title">我的小结</h2>
+          <div class="sec card-sec acc-gold">
+            <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">📊</span>我的小结</h2>
             <div class="plan-card" style="padding:6px 14px"><div id="profile-stats"></div></div>
           </div>
           <div class="sec" id="share-sec"></div>
-          <div class="sec">
-            <h2 class="sec-title">这部手机是谁的</h2>
+          <div class="sec card-sec acc-blue">
+            <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">📱</span>这部手机是谁的</h2>
             <div class="me-grid" id="profile-who" role="group" aria-label="这部手机是谁的"></div>
           </div>
           <div class="sec" data-fb-slot></div>

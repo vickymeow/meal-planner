@@ -8,16 +8,22 @@
   ];
   var FAMILY = ["vicky", "chen", "dad"]; // 点菜的人，用同一版
 
+  // 菜谱分类：按主料分，一道菜可以在好几类里（比如番茄炒蛋 = 蛋 + 瓜果）。分类是按菜名和主料自动算的。
   var CATS = [
     { id: "all", label: "全部" },
+    { id: "pork", label: "🐷 猪肉" },
+    { id: "beef", label: "🐮 牛羊肉" },
+    { id: "chicken", label: "🐔 鸡鸭" },
     { id: "fish", label: "🐟 鱼" },
-    { id: "meat", label: "🥩 肉" },
+    { id: "shrimp", label: "🦐 虾蟹" },
     { id: "egg", label: "🥚 蛋" },
-    { id: "tofu", label: "豆腐" },
-    { id: "veg", label: "🥬 青菜" },
+    { id: "tofu", label: "⬜ 豆腐豆浆" },
+    { id: "leafy", label: "🥬 青菜" },
+    { id: "root", label: "🥕 瓜果根茎" },
+    { id: "soup", label: "🍲 汤" },
     { id: "staple", label: "🍚 主食" }
   ];
-  var CAT_EMOJI = { fish: "🐟", meat: "🍖", egg: "🥚", tofu: "🧈", veg: "🥬", staple: "🍚" };
+  var CAT_EMOJI = { pork: "🐷", beef: "🐮", chicken: "🐔", fish: "🐟", shrimp: "🦐", egg: "🥚", tofu: "⬜", leafy: "🥬", root: "🥕", soup: "🍲", staple: "🍚" };
 
   var CRAVES = [
     { level: 1, emoji: "😊", label: "想吃", desc: "有空做就行" },

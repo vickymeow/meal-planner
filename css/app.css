@@ -164,3 +164,31 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
 .mini-av.act-chen { background: linear-gradient(135deg,#5b84ad,#38618c); }
 .mini-av.act-dad { background: linear-gradient(135deg,#a67c3f,#7a5a2e); }
 .act-main .dish-link-txt { display: inline-block; min-height: 28px; }
+
+/* 每个功能区一张卡片：上面一条颜色、标题带图标，一眼分得开（照着「家里动态」那种） */
+.sec.card-sec {
+  --acc: #e07a2e; --acc-bg: #fff3e4;
+  margin-top: 18px; padding: 0 14px 16px;
+  background: linear-gradient(180deg, #ffffff, #fffaf1);
+  border: 2px solid #eeddc3; border-top: 6px solid var(--acc);
+  border-radius: 22px; box-shadow: var(--warm-shadow);
+}
+.sec.card-sec > .sec-title {
+  margin: 0 -14px 14px; padding: 12px 14px 11px;
+  background: var(--acc-bg); border-bottom: 1.5px solid #f0e2cc;
+  border-radius: 14px 14px 0 0; align-items: center;
+}
+.sec.card-sec > .sec-title::before { display: none; }
+.sec-ic { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 12px; background: #fff; font-size: 21px; box-shadow: 0 2px 6px rgba(120,70,20,.12); flex: 0 0 auto; }
+.sec.card-sec > .sec-title .custom-toggle { margin-left: auto; }
+.acc-green { --acc: #2e7d5b !important; --acc-bg: #eef6ee !important; }
+.acc-red { --acc: #d9534a !important; --acc-bg: #fff0ee !important; }
+.acc-gold { --acc: #d99a2b !important; --acc-bg: #fff6df !important; }
+.acc-blue { --acc: #4a76a8 !important; --acc-bg: #edf3fa !important; }
+.acc-orange { --acc: #e07a2e !important; --acc-bg: #fff3e4 !important; }
+/* 动态本来就有卡片，放进区块里就不再套一层框 */
+.card-sec .activity-card { background: none; border: none; box-shadow: none; padding: 0; border-radius: 0; }
+/* 照着做：早饭、晚饭两张卡也用颜色分开 */
+#morning .m-card { border-top: 6px solid #d99a2b; }
+#morning .m-card + .m-card { border-top-color: #2e7d5b; }
+#morning .m-card .plan-meal { font-size: 21px; }

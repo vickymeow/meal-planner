@@ -1,5 +1,5 @@
 // 早饭晚饭的 AI 助手（Supabase Edge Function）
-// - task "recipe"：给一道家常菜写配料（带份量）和做法
+// - task "recipe"：给一道家常菜写详细的配料（带份量）和做法（火候、时间、怎么看熟）
 // - task "intent"：把一句话（语音转的字）变成 App 里要做的事
 // - task "transcribe"：录音转文字（主屏 App 里浏览器自带的语音识别常常用不了）
 // - task "photo"：给一道菜生成一张写实菜品照（通义万相 / Qwen-Image），存进 mp-photos，写进家里的同步库
@@ -58,8 +58,9 @@ async function chatOnce(key: string, base: string, model: string, messages: unkn
   return String(JSON.parse(txt)?.choices?.[0]?.message?.content || "");
 }
 // 依次试：key → 地址 → 模型；401 换地址/换 key，404（套餐里没有这个模型）换模型
-async function chat(messages: unknown[], jsonMode: boolean): Promise<string> {
-  if (good) {
+async function chat(messages: unknown[], jsonMode: boolean, prefer: string[] = []): Promise<string> {
+  const models = [...prefer, ...CHAT_CANDIDATES].filter((x, i, a) => a.indexOf(x) === i);
+  if (good && !prefer.length) {
     try { return await chatOnce(good.key, good.base, good.model, messages, jsonMode); }
     catch (e) { if (!(e instanceof HttpErr) || ![401, 403, 404].includes(e.status)) throw e; good = null; }
   }
@@ -67,18 +68,19 @@ async function chat(messages: unknown[], jsonMode: boolean): Promise<string> {
   for (const k of KEYS) {
     for (const base of basesFor(k.key)) {
       let authFailed = false;
-      for (const model of CHAT_CANDIDATES) {
+      for (const model of models) {
         try {
           const out = await chatOnce(k.key, base, model, messages, jsonMode);
-          good = { key: k.key, src: k.src, base, model };
+          if (!prefer.length) good = { key: k.key, src: k.src, base, model };
           return out;
         } catch (e) {
           last = e;
           console.error("qwen chat failed", (e as Error).message);
           const st = (e as HttpErr).status;
+          if (prefer.includes(model) && st !== 401) continue; // 想先用的模型用不了：直接换下一个
           if (st === 401 || st === 403) { authFailed = true; break; } // 这个地址不认这把 key
           if (st === 400 && jsonMode && /response_format|json/i.test((e as Error).message)) {
-            return chat(messages, false); // 不支持 JSON 模式：不带格式要求再来
+            return chat(messages, false, prefer); // 不支持 JSON 模式：不带格式要求再来
           }
           if (st !== 404 && st !== 400) throw e;
         }
@@ -88,11 +90,11 @@ async function chat(messages: unknown[], jsonMode: boolean): Promise<string> {
   }
   throw last || new Error("no key");
 }
-async function askJSON(system: string, user: string, schema: unknown) {
+async function askJSON(system: string, user: string, schema: unknown, prefer: string[] = []) {
   const content = await chat([
     { role: "system", content: system + "\n\n只输出一个 JSON 对象，不要输出其他文字。JSON 必须符合这个 JSON Schema：\n" + JSON.stringify(schema) },
     { role: "user", content: user },
-  ], true);
+  ], true, prefer);
   const m = String(content).match(/\{[\s\S]*\}/);
   if (!m) throw new HttpErr(502, "no json in reply");
   return JSON.parse(m[0]);
@@ -341,13 +343,16 @@ Deno.serve(async (req) => {
   if (body.task === "recipe") {
     const name = String(body.name || "").slice(0, 40);
     if (!name) return json({ error: "no name" }, 400);
-    system = "你帮一位中国妈妈写家常菜谱。全部用简体中文，份量按一家 4 口。";
-    user = `菜名：${name}（${body.meal === "breakfast" ? "早饭" : "晚饭"}）
+    const had = (Array.isArray(body.ings) ? body.ings : []).map(String).slice(0, 12).join("、");
+    const oldSteps = (Array.isArray(body.steps) ? body.steps : []).map(String).slice(0, 10).join(" / ").slice(0, 600);
+    system = "你帮一位中国妈妈写家常菜谱。全部用简体中文，份量按一家 4 口。要写得详细、照着做就能成功，像有经验的家庭厨师手把手教。";
+    user = `菜名：${name}（${body.meal === "breakfast" ? "早饭" : "晚饭"}）${had ? "\n家里原来写的配料（尽量沿用，可以补全份量和漏掉的调料）：" + had : ""}${oldSteps ? "\n家里原来的做法（照这个思路和做法写详细，不要换成别的做法）：" + oldSteps : ""}
+不要加家里原来没有的主料（比如原来没有鸡蛋就别加鸡蛋），可以补调料和份量。
 写出：
 - cat：主料分类，fish 鱼 / meat 肉（含鸡鸭虾）/ egg 蛋 / tofu 豆腐 / veg 青菜素菜 / staple 主食面点
-- ings：5 到 8 样配料，每样写成「名字 份量」，名字和份量之间一个空格，比如「排骨 500克」「姜」（调料可以不写份量）
-- steps：3 到 5 步做法，每步一句短话，老人一看就懂
-- prep：需要提前买或提前备的，一句短话；不需要就空字符串`;
+- ings：配料，主料和调料都要有份量（复杂的菜 6 到 12 样；简单的早饭几样就够，不要硬凑），每样写成「名字 份量」，名字和份量之间一个空格，比如「排骨 500克」「生抽 2 勺」「盐 半小勺」「姜 3 片」
+- steps：做法按先后顺序，炒菜炖菜 6 到 10 步，简单的早饭 4 到 6 步就够。每步一到两句话，写清楚：怎么切（切多大）、用大火中火还是小火、大概几分钟、看到什么样子就好了（比如「炒到边上微微发黄」「筷子能轻松戳透」）。关键的小窍门写进对应那一步里（比如「肉要冷水下锅」「鱼下锅前擦干，不粘锅」）。不要写序号。买来就能直接吃的（比如面包、冷冻包子），就写清楚怎么热、热多久、怎么配着吃。
+- prep：需要提前买、提前泡、提前腌或解冻的，一句话；不需要就空字符串`;
     schema = RECIPE_SCHEMA;
   } else if (body.task === "intent") {
     const text = String(body.text || "").slice(0, 300);
@@ -366,10 +371,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const out: any = await askJSON(system, user, schema);
+    // 菜谱要写得好：先用 plus 模型，套餐里没有再用 flash
+    const out: any = await askJSON(system, user, schema, body.task === "recipe" ? ["qwen3.7-plus", "qwen3.6-plus", "qwen-plus"] : []);
     if (body.task === "recipe") {
-      out.ings = (Array.isArray(out.ings) ? out.ings : []).map(String).slice(0, 12);
-      out.steps = (Array.isArray(out.steps) ? out.steps : []).map(String).slice(0, 8);
+      out.ings = (Array.isArray(out.ings) ? out.ings : []).map(String).slice(0, 14);
+      out.steps = (Array.isArray(out.steps) ? out.steps : []).map((x: unknown) => String(x).replace(/^\s*(第?\d+步?[.、．:：)）]\s*)/, "")).slice(0, 12);
       out.prep = String(out.prep || "");
       if (!["fish", "meat", "egg", "tofu", "veg", "staple"].includes(out.cat)) out.cat = "veg";
     } else {
