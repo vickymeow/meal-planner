@@ -1,0 +1,363 @@
+/* 奶油黄主题（Vicky 在 Pinterest 收藏的 MealSea 那张）：奶油底、黄油黄、软立体卡片、标题用宋体。
+   放在 mock-v19.css 和 app.css 后面加载，只覆盖颜色和样子，不动布局、字号。
+   上半部分是把原来的橙红/绿色换成黄色（脚本生成），下半部分是手写的。 */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;800&display=swap");
+/*  —— 来自 mock-v19.css  */
+:root { --page-bg:hsl(40 21% 93%); --page-ink:hsl(30 25% 10%); --page-line:hsl(40 19% 85%); --accent:hsl(42 92% 66%); --accent-ink:#2c2218 }
+@media (prefers-color-scheme: dark) {
+:root { --accent:hsl(42 92% 66%); --accent-ink:#2c2218 }
+}
+.screen { background:hsl(40 70% 97%); color:hsl(30 25% 10%) }
+.day-when { color:hsl(36 85% 28%) }
+.day-chip { border:2px solid hsl(42 49% 90%); color:hsl(30 25% 10%) }
+.day-chip.on { border-color:hsl(42 92% 66%); background:hsl(40 61% 94%) }
+.person { border:1.5px solid hsl(42 49% 90%) }
+.home-btn.on { background:hsl(42 92% 66%); color:#2c2218 }
+.home-btn.off { background:hsl(42 52% 91%); border-color:hsl(40 19% 82%) }
+.count-line b { color:hsl(36 85% 28%) }
+.wish-group { border:1.5px solid hsl(42 49% 90%) }
+.chip { background:hsl(40 61% 94%); border:1.5px solid hsl(42 74% 90%) }
+.chip .meal-tag { color:hsl(36 85% 28%); background:hsl(42 98% 90%) }
+.chip .x { background:hsl(42 80% 90%); color:hsl(36 85% 28%) }
+.bf-card { background:hsl(42 60% 95%); border:2px solid hsl(42 70% 85%) }
+.bf-row + .bf-row { border-top:1px solid hsl(42 70% 85%) }
+.heat-tag { background:hsl(42 60% 95%) }
+.plan-card { border:2px solid hsl(42 49% 90%) }
+.plan-card.decided { border-color:hsl(42 92% 66%) }
+.plan-meal { color:hsl(36 85% 28%) }
+.plan-empty { border:2.5px dashed hsl(42 92% 75%); background:hsl(40 70% 99%); color:hsl(36 85% 28%) }
+.dish-row + .dish-row { border-top:1px solid hsl(42 61% 90%) }
+.dish-tile { background:hsl(42 86% 90%); color:hsl(36 85% 28%) }
+.prep-tag { color:hsl(36 85% 28%); background:hsl(40 60% 89%) }
+.mini-btn { border:1.5px solid hsl(40 19% 82%); background:hsl(40 54% 97%) }
+.mini-btn.danger { color:hsl(36 85% 28%) }
+.add-dish { border:1.5px solid hsl(40 19% 82%); background:hsl(40 54% 97%) }
+.m-card { border:2px solid hsl(42 49% 90%) }
+.m-dish + .m-dish { border-top:1px solid hsl(42 61% 90%) }
+.done-btn { background:hsl(42 92% 66%); color:#2c2218 }
+.m-dish.done .done-btn { background:hsl(42 60% 95%) }
+.today-line { background:hsl(40 61% 94%) }
+.menu-add { border:2.5px dashed hsl(42 92% 75%); background:hsl(40 70% 99%); color:hsl(36 85% 28%) }
+.menu-row { border:1.5px solid hsl(42 49% 90%) }
+.buy-sum { background:hsl(40 61% 94%) }
+.buy-sum b { color:hsl(36 85% 28%) }
+.buy-row { border:1.5px solid hsl(42 49% 90%); color:hsl(30 25% 10%) }
+.buy-row .b-state { background:hsl(40 61% 94%); color:hsl(36 85% 28%) }
+.buy-row.bought .b-state { background:hsl(42 60% 95%) }
+.week-row { border:1.5px solid hsl(42 49% 90%) }
+.week-row .w-none { color:hsl(36 85% 28%) }
+.bottom-nav { border-top:2px solid hsl(42 49% 90%) }
+.bottom-nav button.on { background:hsl(40 61% 94%); color:hsl(36 85% 28%) }
+.nav-badge { background:hsl(42 92% 66%); color:#2c2218 }
+.sheet { background:hsl(40 70% 98%) }
+.pick-card { border:2px solid hsl(42 49% 90%) }
+.pick-card .pk-name { color:hsl(30 25% 10%) }
+.pick-card .pk-from { color:hsl(36 85% 28%) }
+.sheet-close { border:1.5px solid hsl(40 19% 82%) }
+.ing-list li { border:1.5px solid hsl(42 49% 90%) }
+.add-input { border:2px solid hsl(40 19% 82%); color:hsl(30 25% 10%) }
+.meal-toggle button { border:2px solid hsl(40 19% 82%) }
+.meal-toggle button.on { background:hsl(42 92% 66%); border-color:hsl(42 92% 66%); color:#2c2218 }
+.sheet-cta { background:hsl(42 92% 66%); color:#2c2218 }
+.dish-tile { background:hsl(42 92% 74%) !important; border:2px solid hsl(42 92% 68%) }
+button:focus-visible, a:focus-visible, input:focus-visible { outline:3px solid hsl(42 92% 66%) }
+.read-btn { border:2px solid hsl(42 92% 66%); background:hsl(42 60% 95%) }
+.read-panel { border:1.5px solid hsl(42 49% 90%) }
+.thanks-line { color:hsl(36 85% 28%) }
+.log-item { border-top:1px solid hsl(42 56% 90%) }
+.filter-chip { border:2px solid hsl(40 19% 82%) }
+.filter-chip.on { background:hsl(42 92% 66%); border-color:hsl(42 92% 66%); color:#2c2218 }
+.ord-btn { border:1.5px solid hsl(40 19% 82%); background:hsl(40 54% 97%) }
+.b-qty { color:hsl(36 85% 28%) }
+.random-btn { border:1.5px solid hsl(42 92% 75%); background:hsl(40 61% 94%); color:hsl(36 85% 28%) }
+.order-card { border:2.5px solid hsl(42 92% 66%) }
+.me-btn { border:2px solid hsl(40 19% 82%); background:hsl(40 54% 97%) }
+.me-btn .me-name { color:hsl(30 25% 10%) }
+.me-btn.on { border-color:hsl(42 92% 66%); background:hsl(40 61% 94%); box-shadow:inset 0 0 0 1px hsl(42 92% 66%) }
+.me-btn.on .me-name::after { color:hsl(36 85% 28%) }
+.order-big.primary { background:hsl(42 92% 66%); color:#2c2218 }
+.order-big.secondary { background:hsl(42 92% 66%); color:#2c2218 }
+.order-status { background:hsl(40 54% 97%) }
+.order-status b { color:hsl(36 85% 28%) }
+.want-btn { background:hsl(42 92% 66%) !important; color:#2c2218 !important; border-color:hsl(42 92% 66%) !important }
+.bf-day-toggle { border:2px solid hsl(40 19% 82%); color:hsl(30 25% 10%) }
+.bf-day-toggle.on { border-color:hsl(42 92% 66%); background:hsl(42 60% 95%); box-shadow:inset 0 0 0 1px hsl(42 92% 66%) }
+.bf-stage-row { border:1.5px solid hsl(42 49% 90%) }
+.bf-stage-row .s-dish.none { color:hsl(36 85% 28%) }
+.custom-box { border:2px solid hsl(42 92% 66%) }
+.voice-btn { border:2px solid hsl(40 19% 82%); background:hsl(40 54% 97%) }
+.custom-del { border:1.5px solid hsl(40 19% 82%); background:hsl(40 54% 97%); color:hsl(36 85% 28%) }
+.staple-chip { border:2px solid hsl(42 92% 66%); background:hsl(42 60% 95%) }
+.staple-chip .sx { background:hsl(42 60% 95%) }
+.menu-rec { background:hsl(42 92% 66%); color:#2c2218 }
+.rec-card { border:2px solid hsl(42 70% 85%) }
+.rec-acts .want-btn { border:1.5px solid hsl(42 92% 66%) }
+.d-row { border:1.5px solid hsl(42 49% 90%) }
+.d-row .s-dish.none { color:hsl(36 85% 28%) }
+.tonight-card { background:hsl(40 61% 94%); border:2px solid hsl(42 74% 90%) }
+.voice-fab { background:hsl(42 92% 66%); color:#2c2218; box-shadow:0 10px 26px hsl(42 92% 66% / .45), 0 2px 6px rgba(0,0,0,.25) }
+.vp-mic { border:2.5px solid hsl(42 92% 66%); background:hsl(42 60% 95%) }
+.vp-item { border:2px solid hsl(42 49% 90%) }
+.vp-item.need { border-color:hsl(42 92% 68%); background:hsl(40 70% 97%) }
+.vp-day { color:hsl(36 85% 28%) }
+.vp-note { color:hsl(36 85% 28%) }
+.vp-cand { border:2px solid hsl(42 92% 66%); background:hsl(42 60% 95%) }
+:root { --page-bg:hsl(40 61% 94%); --page-ink:hsl(30 25% 10%); --page-card:hsl(40 70% 99%); --page-line:hsl(42 64% 90%); --accent:hsl(42 92% 66%); --accent-soft:hsl(42 100% 92%); --warm-green:hsl(42 92% 66%); --warm-gold:hsl(42 92% 68%); --warm-shadow:0 6px 20px hsl(42 92% 64% / .10), 0 1px 3px hsl(42 92% 61% / .06); --warm-shadow-lg:0 10px 28px hsl(42 92% 64% / .14), 0 2px 6px hsl(42 92% 61% / .07) }
+@media (prefers-color-scheme: dark) {
+:root { --accent:hsl(42 92% 66%) }
+}
+body { background:radial-gradient(900px 420px at 12% -80px, hsl(42 92% 74% / .38), transparent 62%),
+          radial-gradient(760px 380px at 96% 6%, hsl(42 92% 75% / .22), transparent 60%),
+          linear-gradient(180deg, hsl(40 70% 96%) 0%, var(--page-bg) 46%, hsl(42 92% 91%) 100%) }
+@media (prefers-color-scheme: dark) {
+body { background:radial-gradient(900px 420px at 12% -80px, hsl(42 92% 65% / .18), transparent 62%), linear-gradient(180deg,#241b14 0%, var(--page-bg) 55%, #17110d 100%) }
+}
+.page-head h1::after { background:linear-gradient(90deg,hsl(42 92% 69%),hsl(42 92% 71%)) }
+.switch button { border-color:hsl(42 65% 90%); background:linear-gradient(180deg,hsl(40 70% 99%),hsl(40 70% 96%)) }
+.switch button.on { background:linear-gradient(135deg,hsl(42 92% 68%),hsl(42 92% 66%) 58%,hsl(42 92% 64%)); border-color:hsl(42 92% 65%); box-shadow:0 10px 22px hsl(42 92% 66% / .28), inset 0 1px 0 rgba(255,255,255,.28) }
+#mode-switch button.on { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)); border-color:hsl(42 92% 66%); box-shadow:0 10px 22px hsl(42 92% 66% / .26), inset 0 1px 0 rgba(255,255,255,.25) }
+.phone { box-shadow:0 28px 60px rgba(92,52,18,.34), 0 6px 18px rgba(92,52,18,.22), inset 0 1px 0 hsl(42 100% 90% / .28) }
+.screen { background:linear-gradient(180deg,hsl(40 70% 99%) 0%,hsl(40 70% 96%) 48%,hsl(40 70% 93%) 100%) }
+.screen-scroll { scrollbar-color:hsl(42 92% 75%) transparent }
+.screen-scroll::-webkit-scrollbar-thumb { background:hsl(42 92% 75%) }
+.day-when { background:hsl(42 100% 92%); color:hsl(36 85% 28%); border:1px solid hsl(42 91% 90%) }
+.day-date { color:hsl(30 25% 10%) }
+.sec-title { color:hsl(30 25% 10%) }
+.sec-title::before { background:radial-gradient(circle at 35% 35%, hsl(42 92% 74%), hsl(42 92% 68%)); box-shadow:0 0 0 4px hsl(40 50% 93%) }
+.person,.wish-group,.plan-card,.m-card,.menu-row,.week-row,.bf-stage-row,.d-row,.vp-item,.rec-card { border-color:hsl(42 66% 90%) !important }
+.person { background:linear-gradient(180deg,#ffffff,hsl(40 70% 97%)) }
+.home-btn.on { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)); box-shadow:0 6px 14px hsl(42 92% 66% / .28) }
+.home-btn.off { background:hsl(40 51% 94%) }
+.count-line b { color:hsl(36 85% 28%) }
+.day-chip { border-color:hsl(42 66% 90%); background:linear-gradient(180deg,#fff,hsl(40 70% 97%)); box-shadow:0 3px 10px hsl(42 92% 64% / .07) }
+.day-chip.on { border-color:hsl(42 92% 69%); background:linear-gradient(180deg,hsl(40 70% 94%),hsl(42 100% 90%)); box-shadow:0 6px 16px hsl(42 92% 67% / .18), inset 0 0 0 1px hsl(42 92% 69%) }
+.chip { background:linear-gradient(180deg,hsl(40 70% 93%),hsl(42 100% 90%)); border-color:hsl(42 92% 75%); box-shadow:0 3px 8px hsl(42 92% 64% / .10) }
+.chip .meal-tag { color:hsl(36 85% 28%) }
+.chip .x { box-shadow:0 1px 4px hsl(42 92% 61% / .14) }
+.bf-card { border-color:hsl(42 70% 85%) !important; background:linear-gradient(180deg,#f7fbf3,hsl(42 60% 95%)) }
+.heat-tag { box-shadow:0 2px 6px hsl(42 92% 66% / .12) }
+.plan-card { background:linear-gradient(180deg,#ffffff,hsl(40 70% 98%)) }
+.plan-card.decided { border-color:hsl(42 92% 69%) !important; background:linear-gradient(180deg,hsl(40 70% 97%),hsl(40 70% 94%)); box-shadow:0 10px 24px hsl(42 92% 67% / .16) }
+.plan-meal { color:hsl(36 85% 28%) }
+.plan-empty { border-color:hsl(42 92% 75%); background:radial-gradient(circle at 50% 0%, hsl(40 70% 98%), hsl(40 70% 95%)) }
+.dish-tile { background:linear-gradient(145deg,hsl(40 70% 77%),hsl(42 92% 71%)) !important; border-color:hsl(42 92% 68%) !important; box-shadow:inset 0 1px 0 rgba(255,255,255,.55), 0 4px 10px hsl(42 92% 64% / .14) }
+.prep-tag { background:hsl(40 70% 89%); border:1px solid hsl(40 43% 75%) }
+.mini-btn { background:hsl(40 70% 97%); box-shadow:0 2px 6px hsl(42 92% 61% / .07) }
+.add-dish { background:hsl(40 70% 97%) }
+.done-btn { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)); box-shadow:0 8px 18px hsl(42 92% 66% / .26) }
+.today-line { background:linear-gradient(180deg,hsl(40 70% 94%),hsl(42 100% 91%)); border:1px solid hsl(42 85% 90%) }
+.read-btn { background:linear-gradient(180deg,hsl(42 60% 95%),hsl(42 60% 95%)) }
+.menu-add { border-color:hsl(42 92% 75%); background:radial-gradient(circle at 50% 0%, hsl(40 70% 98%), hsl(40 70% 95%)) }
+.menu-rec { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)); box-shadow:0 10px 20px hsl(42 92% 66% / .26) }
+.filter-chip { box-shadow:0 2px 6px hsl(42 92% 61% / .07); background:hsl(40 70% 99%) }
+.filter-chip.on { background:linear-gradient(135deg,hsl(42 92% 68%),hsl(42 92% 66%)); border-color:hsl(42 92% 66%); box-shadow:0 6px 14px hsl(42 92% 66% / .24) }
+.buy-sum { background:linear-gradient(180deg,hsl(40 70% 94%),hsl(42 100% 91%)); border:1px solid hsl(42 85% 90%) }
+.buy-row .b-state { background:hsl(40 70% 91%) }
+.custom-box { border-color:hsl(42 70% 85%); background:linear-gradient(180deg,#ffffff,hsl(42 60% 95%)) }
+.staple-chip { background:linear-gradient(180deg,hsl(42 60% 95%),hsl(42 60% 95%)); box-shadow:0 3px 8px hsl(42 92% 66% / .10) }
+.add-input { border-color:hsl(42 61% 90%); background:hsl(40 70% 99%) }
+.add-input:focus { border-color:hsl(42 92% 69%) }
+.sheet-cta,.order-big.primary { background:linear-gradient(135deg,hsl(42 92% 68%),hsl(42 92% 66%) 60%,hsl(42 92% 64%)); box-shadow:0 10px 20px hsl(42 92% 66% / .26) }
+.order-big.secondary { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)); box-shadow:0 10px 20px hsl(42 92% 66% / .24) }
+.tonight-card { background:linear-gradient(180deg,hsl(40 70% 94%),hsl(42 100% 91%)); border-color:hsl(42 92% 76%) }
+.me-btn.on { background:linear-gradient(180deg,hsl(40 70% 94%),hsl(42 100% 90%)) }
+.bf-day-toggle.on { background:linear-gradient(180deg,hsl(42 60% 95%),hsl(42 60% 95%)) }
+.bottom-nav { background:linear-gradient(180deg,hsl(40 70% 99%),hsl(40 70% 96%)); border-top:1px solid hsl(42 66% 90%); box-shadow:0 -8px 22px hsl(42 92% 64% / .10) }
+.bottom-nav button.on { background:linear-gradient(180deg,hsl(42 100% 91%),hsl(42 100% 90%)); color:hsl(36 85% 28%); box-shadow:inset 0 0 0 1px hsl(42 92% 75%), 0 4px 10px hsl(42 92% 67% / .14) }
+.nav-badge { background:linear-gradient(135deg,hsl(42 92% 69%),hsl(42 92% 66%)); box-shadow:0 3px 8px hsl(42 92% 66% / .35); border:2px solid hsl(40 56% 97%) }
+.sheet { background:linear-gradient(180deg,hsl(40 70% 99%),hsl(40 70% 96%)) }
+.toast { border:1px solid hsl(42 100% 90% / .35) }
+.voice-fab { background:radial-gradient(circle at 32% 28%, hsl(42 92% 66%), hsl(42 92% 66%) 62%, hsl(42 92% 66%)); border:3px solid hsl(40 56% 97%); box-shadow:0 14px 30px hsl(42 92% 66% / .42), 0 3px 8px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.45) }
+.voice-fab::after { border:2px solid hsl(42 92% 66% / .38) }
+.vp-mic { background:linear-gradient(180deg,hsl(42 60% 95%),hsl(42 60% 95%)) }
+.rule { background:linear-gradient(180deg,var(--page-card),hsl(40 70% 96%)) }
+.try { border-color:hsl(42 92% 72%); background:linear-gradient(180deg,hsl(40 70% 95%),hsl(42 100% 91%)) }
+.warm-tag { background:linear-gradient(180deg,hsl(40 70% 93%),hsl(42 100% 90%)); border:1px solid hsl(42 92% 75%); color:hsl(36 85% 28%); box-shadow:0 3px 10px hsl(42 92% 64% / .10) }
+@media (prefers-color-scheme: dark) {
+.warm-tag { border-color:hsl(42 92% 60%); color:hsl(36 85% 28%) }
+}
+.home-pill.on { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)); color:#2c2218; box-shadow:0 4px 10px hsl(42 92% 66% / .22) }
+.home-pill.off { background:hsl(40 51% 94%); border:2px solid hsl(42 51% 90%) }
+.voice-fab { background:radial-gradient(circle at 34% 26%, hsl(40 70% 86%) 0%, hsl(40 70% 77%) 34%, hsl(42 92% 75%) 72%, hsl(42 92% 74%) 100%) !important; border:3px solid hsl(40 56% 97%) !important; color:hsl(36 85% 28%) !important; box-shadow:0 16px 32px hsl(42 92% 66% / .38), 0 3px 8px hsl(42 92% 60% / .18), inset 0 2px 0 rgba(255,255,255,.65), inset 0 -6px 14px hsl(42 92% 68% / .18) !important }
+.voice-fab::after { border:2.5px solid hsl(42 92% 72% / .55) !important }
+.vf-ear { background:radial-gradient(circle at 35% 30%, hsl(40 70% 83%), hsl(42 92% 75%)); border:2.5px solid hsl(40 56% 97%); box-shadow:0 3px 7px hsl(42 92% 64% / .20) }
+.vf-ear::after { background:hsl(42 100% 90%) }
+.voice-fab .vf-mic { filter:drop-shadow(0 2px 3px hsl(42 92% 62% / .28)) }
+.vf-eye { background:hsl(42 92% 61%) }
+.vf-smile { border:2px solid hsl(42 92% 61%) }
+.vf-cheek { background:hsl(42 92% 72% / .45) }
+.voice-fab .vf-label { color:hsl(36 85% 28%) }
+.plan-card.decided::after { color:hsl(36 85% 28% / .34) }
+.app-brand img { box-shadow:0 10px 24px hsl(42 92% 66% / .28), 0 2px 6px hsl(42 92% 60% / .16) }
+.app-brand .ab-txt b { color:hsl(36 85% 28%) }
+@media (prefers-color-scheme: dark) {
+.app-brand .ab-txt b { color:hsl(36 85% 28%) }
+}
+.day-meta { background:linear-gradient(180deg,hsl(40 70% 94%),hsl(42 100% 91%)); border:1.5px solid hsl(42 92% 75%); box-shadow:0 4px 12px hsl(42 92% 64% / .10) }
+.day-meta .dm-row { color:hsl(36 85% 28%) }
+.day-meta .dm-row b { color:hsl(36 85% 28%) }
+.day-meta .dm-warm { color:hsl(36 85% 28%) }
+.crave-tag { color:hsl(36 85% 28%); border:1.5px solid hsl(42 92% 75%); box-shadow:0 2px 5px hsl(42 92% 66% / .10) }
+.crave-tag.lv1 { border-color:hsl(40 40% 74%); background:hsl(40 70% 95%) }
+.crave-tag.lv2 { color:hsl(36 85% 28%); border-color:hsl(42 92% 74%); background:hsl(40 70% 94%) }
+.crave-tag.lv3 { color:hsl(36 85% 28%); border-color:hsl(42 92% 76%) }
+.crave-btn { border:2.5px solid hsl(42 66% 90%); box-shadow:0 4px 12px hsl(42 92% 64% / .08) }
+.crave-btn .cb-txt { color:hsl(30 25% 10%) }
+.crave-btn.lv3 { border-color:hsl(42 92% 76%) }
+.crave-btn.lv2 { border-color:hsl(42 92% 74%); background:linear-gradient(180deg,hsl(40 70% 98%),hsl(40 70% 91%)) }
+.vf-mic svg { filter:drop-shadow(0 2px 3px hsl(42 92% 62% / .30)) }
+.app-brand img.app-icon-round, img.app-icon-round { border:3px solid hsl(40 56% 97%); outline:2.5px solid hsl(42 92% 71%); box-shadow:0 10px 24px hsl(42 92% 67% / .30); background:hsl(40 70% 96%) }
+.custom-toggle { border:2px solid hsl(42 92% 66%); background:hsl(42 60% 95%) }
+.profile-card { background:linear-gradient(180deg,#ffffff,hsl(40 70% 97%)); border:2px solid hsl(42 66% 90%) }
+.fb-box { border:2px solid hsl(42 66% 90%) }
+.fb-item { border-top:1px solid hsl(42 56% 90%) }
+.fb-item b { color:hsl(36 85% 28%) }
+.page-feedback { background:linear-gradient(180deg,var(--page-card),hsl(40 70% 96%)) }
+.voice-fab { background:hsl(40 70% 99%) !important }
+.voice-fab .vf-avatar { background:hsl(40 70% 96%) }
+.voice-fab::after { border-color:hsl(42 92% 71% / .55) !important }
+.vf-mic-badge { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)); border:2.5px solid hsl(40 56% 97%); box-shadow:0 5px 12px hsl(42 92% 66% / .38) }
+.vf-label-chip { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)); color:#2c2218; border:2px solid hsl(40 56% 97%); box-shadow:0 5px 12px hsl(42 92% 66% / .30) }
+.app-brand img.app-icon-round, img.app-icon-round { border:3px solid hsl(40 56% 97%); outline:2.5px solid hsl(42 92% 70%); background:hsl(42 75% 91%); box-shadow:0 10px 24px hsl(42 92% 66% / .28) }
+.voice-fab { background:radial-gradient(circle at 34% 26%, hsl(40 70% 86%) 0%, hsl(40 70% 77%) 34%, hsl(42 92% 75%) 72%, hsl(42 92% 74%) 100%) !important }
+.voice-fab .vf-mic svg { filter:drop-shadow(0 2px 3px hsl(42 92% 62% / .30)) }
+.voice-fab .vf-label { color:hsl(36 85% 28%) }
+.away-tag { color:hsl(36 85% 28%); background:hsl(40 60% 95%); border:1.5px solid hsl(42 92% 75%) }
+.guest-banner { background:linear-gradient(180deg,hsl(40 70% 94%),hsl(42 100% 90%)); border:2px solid hsl(42 92% 74%); box-shadow:0 8px 20px hsl(42 92% 67% / .16) }
+.guest-banner .gb-main b { color:hsl(36 85% 28%) }
+.guest-banner .gb-sub { color:hsl(36 85% 28%) }
+.guest-box { border:2px solid hsl(42 92% 74%) }
+.g-day-btn { border:2px solid hsl(40 19% 82%); color:hsl(30 25% 10%) }
+.g-day-btn.on { border-color:hsl(42 92% 68%); background:linear-gradient(180deg,hsl(40 70% 94%),hsl(42 100% 90%)); box-shadow:inset 0 0 0 1px hsl(42 92% 68%) }
+.g-count-btn { border:2px solid hsl(40 19% 82%) }
+.g-count-btn.on { background:hsl(42 92% 66%); border-color:hsl(42 92% 66%); color:#2c2218 }
+.guest-item-row { background:hsl(40 70% 97%); border:1.5px solid hsl(42 74% 90%) }
+.guest-none { border:1.5px dashed hsl(40 19% 82%) }
+.guest-fold-btn { border:2px dashed hsl(40 34% 74%); background:linear-gradient(180deg,hsl(40 70% 98%),hsl(40 70% 95%)); color:hsl(36 85% 28%); box-shadow:0 3px 10px hsl(42 92% 64% / .07) }
+.guest-summary { color:hsl(36 85% 28%); background:hsl(42 100% 90%); border:1.5px solid hsl(42 92% 74%) }
+.guest-collapsed-note { color:hsl(36 85% 28%); background:hsl(40 70% 97%); border:1.5px solid hsl(42 74% 90%) }
+.guest-collapsed-note b { color:hsl(36 85% 28%) }
+.activity-card { background:linear-gradient(180deg,#ffffff,hsl(40 70% 97%)); border:2px solid hsl(42 66% 90%) }
+.act-item { border-top:1px solid hsl(42 61% 90%) }
+.act-dot.act-mom { background:linear-gradient(135deg,hsl(42 92% 69%),hsl(42 92% 66%)) }
+.act-dot.act-vicky { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)) }
+.act-dot.act-dad { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 62%)) }
+.act-dot.act-home { background:hsl(42 92% 75%); color:hsl(36 85% 28%) }
+.act-main { color:hsl(30 25% 10%) }
+.act-main b { color:hsl(36 85% 28%) }
+.act-new { color:#2c2218; background:linear-gradient(135deg,hsl(42 92% 69%),hsl(42 92% 66%)) }
+.act-more { border-top:1px solid hsl(42 61% 90%) }
+.dish-click .dish-name, .dish-click .bf-name, .dish-click .m-name, .dish-click .mn-name { text-decoration-color:hsl(42 92% 66% / .5) }
+.dish-click:hover .dish-name, .dish-click:hover .bf-name, .dish-click:hover .mn-name { color:hsl(36 85% 28%) }
+.recipe-hint { color:hsl(36 85% 28%) }
+.dish-link-txt { color:hsl(36 85% 28%) }
+/*  —— 来自 app.css  */
+body { background:hsl(40 70% 93%) }
+.screen { box-shadow:0 0 40px hsl(42 92% 64% / .12) !important }
+.sync-bar { background:hsl(40 70% 91%); color:hsl(36 85% 28%); border-bottom:1px solid hsl(40 43% 75%) }
+.sync-bar.bad { background:hsl(40 60% 95%); color:hsl(36 85% 28%); border-color:hsl(42 92% 75%) }
+img.dish-photo { background:hsl(42 86% 90%) }
+.fallback-tag { color:hsl(36 85% 28%); background:hsl(40 60% 89%) }
+.home-day { border:2px solid hsl(40 19% 82%); color:hsl(30 25% 10%) }
+.home-day.off { background:hsl(40 51% 94%) }
+.home-day.off span { color:hsl(36 85% 28%) }
+.bf-special button { border:2px solid hsl(40 19% 82%) }
+.bf-special button.on { border-color:hsl(42 92% 66%); background:hsl(40 61% 94%); color:hsl(36 85% 28%) }
+.welcome { background:linear-gradient(180deg,hsl(40 70% 99%),hsl(40 70% 93%)) }
+.welcome-icon { box-shadow:0 10px 24px hsl(42 92% 66% / .28) }
+.share-row { border:1.5px solid hsl(42 49% 90%) }
+.credit { border-top:1px solid hsl(42 56% 90%) }
+.credit a { color:hsl(36 85% 28%) }
+.sel-day { color:hsl(30 25% 10%) }
+.fold-btn { border:1.5px dashed hsl(40 34% 74%); background:hsl(40 70% 97%); color:hsl(36 85% 28%) }
+.fold-sum { background:hsl(40 70% 97%); border:1.5px solid hsl(42 74% 90%) }
+.bf-switch { border:1.5px solid hsl(42 49% 90%) }
+.switch-btn { background:hsl(40 20% 78%) }
+.switch-btn.on { background:hsl(42 92% 66%) }
+.menu-row.wanted { border-color:hsl(42 92% 76%) !important }
+.want-tag { color:hsl(36 85% 28%) }
+.g-day-btn.on { border-color:hsl(42 92% 66%); background:hsl(42 60% 95%); box-shadow:inset 0 0 0 1px hsl(42 92% 66%) }
+.thanks-chip { border:2px solid hsl(42 92% 75%); background:hsl(40 70% 97%); color:hsl(36 85% 28%) }
+.thanks-chip.on { background:hsl(40 70% 89%); border-color:hsl(42 92% 68%) }
+.wish-msg { color:hsl(36 85% 28%) }
+.nn-btn { border:1.5px solid hsl(40 19% 82%); background:hsl(40 54% 97%) }
+.nn-btn.on { border-color:hsl(42 92% 66%); background:hsl(42 60% 95%) }
+.buy-row.skipped .b-state { background:hsl(42 47% 90%) }
+.home-sum { background:hsl(42 60% 95%); border:1.5px solid hsl(42 70% 85%) }
+.home-sum.away { color:hsl(36 85% 28%); background:hsl(40 60% 95%); border-color:hsl(42 92% 75%) }
+.m-count { color:hsl(36 85% 28%) }
+.tab-switch button.on { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)) !important; border-color:hsl(42 92% 66%) !important; color:#2c2218 !important; box-shadow:0 10px 22px hsl(42 92% 66% / .26), inset 0 1px 0 rgba(255,255,255,.25) !important }
+.rec-bar { background:linear-gradient(135deg,hsl(42 92% 70%),hsl(42 92% 66%)); color:#2c2218; box-shadow:0 12px 30px hsl(42 92% 66% / .4) }
+img.act-dot.act-img { background:hsl(42 86% 90%) }
+.sec.card-sec { --acc:hsl(42 92% 68%); --acc-bg:hsl(40 70% 95%); background:linear-gradient(180deg, #ffffff, hsl(40 70% 97%)); border:2px solid hsl(42 66% 90%) }
+.sec.card-sec > .sec-title { border-bottom:1.5px solid hsl(42 65% 90%) }
+.sec-ic { box-shadow:0 2px 6px hsl(42 92% 61% / .12) }
+.acc-green { --acc:hsl(42 92% 66%) !important; --acc-bg:hsl(42 60% 95%) !important }
+.acc-red { --acc:hsl(42 92% 70%) !important }
+.acc-gold { --acc:hsl(42 92% 68%) !important; --acc-bg:hsl(40 70% 94%) !important }
+.acc-orange { --acc:hsl(42 92% 68%) !important; --acc-bg:hsl(40 70% 95%) !important }
+#morning .m-card { border-top:6px solid hsl(42 92% 68%) }
+#morning .m-card + .m-card { border-top-color:hsl(42 92% 66%) }
+.act-c-mom { color:hsl(36 85% 28%) }
+.act-c-dad { color:hsl(36 85% 28%) }
+.day-big { background:linear-gradient(135deg,hsl(40 70% 94%),hsl(42 100% 90%)); border:2px solid hsl(42 92% 69%); box-shadow:0 6px 16px hsl(42 92% 67% / .16) }
+.day-big .db-rel { color:hsl(36 85% 28%) }
+.day-big .db-date { color:hsl(30 25% 10%) }
+.fold-btn { border:1.5px solid hsl(42 92% 76%) !important; background:linear-gradient(180deg,hsl(40 70% 98%),hsl(40 70% 95%)) !important; box-shadow:0 2px 8px hsl(42 92% 64% / .06) }
+.fold-btn .fb-ic { background:hsl(40 56% 83%); color:hsl(36 85% 28%) }
+.fold-btn[aria-expanded="true"] .fb-ic { background:hsl(42 60% 95%) }
+.pick-card.picked { border-color:hsl(42 92% 66%) !important; box-shadow:0 0 0 2px hsl(42 92% 66%) inset, 0 6px 14px hsl(42 92% 66% / .18) !important }
+.pick-card.picked { border-color:hsl(42 92% 66%) !important; box-shadow:0 0 0 2px hsl(42 92% 66%) inset, 0 6px 14px hsl(42 92% 66% / .18) !important }
+.notify-banner { background:linear-gradient(135deg,hsl(40 70% 94%),hsl(42 100% 90%)); border:2px solid hsl(42 92% 74%) }
+.notify-banner .nb-txt b { color:hsl(36 85% 28%) }
+.notify-banner .nb-txt span { color:hsl(36 85% 28%) }
+.notify-banner .nb-yes { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)); color:#2c2218 }
+.notify-banner .nb-no { border:1.5px solid hsl(40 19% 82%) }
+.chip.planned { background:hsl(42 60% 95%) !important; border-color:hsl(42 70% 85%) !important }
+.tc-row { border-top:1px solid hsl(42 61% 90%) }
+.tc-name { color:hsl(30 25% 10%) }
+.tc-name small { color:hsl(36 85% 28%) }
+.tc-yes { background:linear-gradient(135deg,hsl(42 92% 66%),hsl(42 92% 66%)); color:#2c2218 }
+.tc-no { border:1.5px solid hsl(40 19% 82%) }
+.bf-line { border-top:1px solid hsl(42 61% 90%) }
+.bf-line .bl-what { color:hsl(30 25% 10%) }
+.bf-strip { background:hsl(40 70% 94%); border:1.5px solid hsl(40 43% 75%) }
+.bf-strip .bs-hd { color:hsl(36 85% 28%) }
+.bf-wish-tag { color:hsl(36 85% 28%); background:hsl(40 70% 94%); border:1px solid hsl(42 92% 74%) }
+.out-tag { color:hsl(36 85% 28%); background:hsl(40 35% 93%) }
+.menu-row.out { background:hsl(40 35% 93%) !important }
+.stock-btn { border-color:hsl(40 19% 82%) !important }
+.stock-btn.back { border-color:hsl(42 92% 66%) !important; background:hsl(42 60% 95%) !important }
+
+/* —— 手写部分 —— */
+:root { --yellow: #F6CF6A; --yellow-hi: #FCE7A8; --yellow-glow: rgba(214,166,40,.32); --ink-strong: #2c2218; --line-soft: #ece2cf; }
+body, .screen { background: #F7F0E3 !important; }
+/* 标题、菜名用宋体（iPhone 自带「宋体-简」） */
+h1, h2, h3, .ih-name, .menu-row b, .sec-title, .day-date, .ing-head h3, .sheet h3, .welcome h1 {
+  font-family: "Songti SC", "Noto Serif SC", "STSong", serif !important; letter-spacing: .02em; }
+/* 「捏出来」的软立体：没有边，上亮下暗两道阴影 */
+.card-sec, .wish-group, .pick-card, .day-chip, .home-day, .bf-special button, .switch button {
+  border-color: transparent !important; background: #FBF6EC !important;
+  box-shadow: 8px 10px 22px rgba(166,130,70,.16), -6px -6px 16px rgba(255,255,255,.85) !important; }
+.day-chip.on, .switch button.on { background: var(--yellow) !important; }
+.sheet { background: #F9F3E7 !important; }
+.bottom-nav { background: #FBF6EC !important; border-top: none !important; box-shadow: 0 -8px 22px rgba(166,130,70,.14) !important; }
+
+
+/* 卡片：去掉粗边，换成柔和阴影 */
+.card-sec, .wish-group, .pick-card, .day-chip, .home-day, .bf-special button, .switch button {
+  border-width: 1px !important;
+}
+.card-sec { border-radius: 26px !important; }
+/* 做法页：大图在上，配料前面一颗黄点 */
+.ing-head { flex-direction: column; align-items: stretch; gap: 14px; }
+.ing-head img { width: 100% !important; height: 210px !important; border-radius: 22px !important; box-shadow: 0 12px 26px rgba(120,80,10,.16); }
+.ing-list li { border: none !important; box-shadow: none !important; background: transparent !important;
+  padding: 10px 4px 10px 30px !important; position: relative; min-height: 0 !important; border-bottom: 1px dashed var(--line-soft) !important; border-radius: 0 !important; }
+.ing-list li::before { content: ""; position: absolute; left: 6px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: var(--yellow); }
+/* 底部导航：选中项是一颗黄色胶囊 */
+.bottom-nav button.on { background: var(--yellow) !important; color: var(--ink-strong) !important; box-shadow: 0 8px 18px var(--yellow-glow) !important; }
+/* 话筒：黄色圆 */
+.voice-fab { background: radial-gradient(circle at 32% 28%, var(--yellow-hi), var(--yellow) 65%) !important; color: var(--ink-strong) !important; box-shadow: 0 14px 28px var(--yellow-glow), 0 3px 8px rgba(0,0,0,.12) !important; }
+.voice-fab::after { border-color: var(--yellow-glow) !important; }
+.switch button.on small { color: rgba(29,23,18,.7) !important; }
