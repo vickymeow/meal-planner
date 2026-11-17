@@ -281,6 +281,94 @@ window.MP_PHOTOS = {
   "page": "https://commons.wikimedia.org/wiki/File:Taste_of_Beijing,_Soho,_London_(4363975792).jpg",
   "modified": true
  },
+ "香菇包": {
+  "file": "photos/mushroom-bun.jpg",
+  "author": "J. Samuel Burner",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Nangua_Baozi_(chinese_dumplings).jpg",
+  "modified": false
+ },
+ "烧卖": {
+  "file": "photos/shumai.jpg",
+  "author": "Peachyeung316",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Homemade_style_pork_shumai_in_Hong_Kong.jpg",
+  "modified": false
+ },
+ "排骨炖藕": {
+  "file": "photos/lotus-rib.jpg",
+  "author": "Popolon",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Lotus_root-Hubei_style.jpg",
+  "modified": false
+ },
+ "酸辣鸡胗": {
+  "file": "photos/gizzard.jpg",
+  "author": "pelican from Tokyo, Japan",
+  "license": "CC BY-SA 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Stir-fried_cabbage_and_chicken_gizzard_(2206134344).jpg",
+  "modified": true
+ },
+ "小炒胡萝卜": {
+  "file": "photos/carrot.jpg",
+  "author": "pelican from Tokyo, Japan",
+  "license": "CC BY-SA 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Spicy_stir-fried_potato_and_carrot_(4105702396).jpg",
+  "modified": true
+ },
+ "肉末茄子": {
+  "file": "photos/eggplant.jpg",
+  "author": "pelican from Tokyo, Japan",
+  "license": "CC BY-SA 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Egg_plant_and_minced_pork_curry_(5461168525).jpg",
+  "modified": false
+ },
+ "牛排骨": {
+  "file": "photos/beef-ribs.jpg",
+  "author": "T.Tseng",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Braised_beef_ribs_in_galbi_sauce_(25044976362).jpg",
+  "modified": false
+ },
+ "酱烧牛排骨": {
+  "file": "photos/sauce-beef-ribs.jpg",
+  "author": "T.Tseng",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Braised_beef_ribs_in_galbi_sauce_(25044976362).jpg",
+  "modified": false
+ },
+ "茶树菇鸡汤": {
+  "file": "photos/chicken-soup.jpg",
+  "author": "David",
+  "license": "Public domain",
+  "licenseUrl": "",
+  "page": "https://commons.wikimedia.org/wiki/File:Southern_Chinese_style_chicken_soup_with_mushrooms_and_corn.jpg",
+  "modified": false
+ },
+ "煎饼": {
+  "file": "photos/jianbing.jpg",
+  "author": "Alwaleed Khaled",
+  "license": "CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Jianbing_on_plate.jpg",
+  "modified": true
+ },
+ "麻辣虾香锅": {
+  "file": "photos/mala-shrimp.jpg",
+  "author": "Qinrong0115",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Malaxiangguo_in_China.jpg",
+  "modified": true
+ },
  "红烧鲫鱼": {
   "file": "photos/braised-hairtail.jpg",
   "author": "lazy fri13th",
