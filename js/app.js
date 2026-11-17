@@ -531,16 +531,25 @@
     for (var k = 0; k < WMO.length; k++) { if (code <= WMO[k][0]) { label = WMO[k][1]; break; } }
     return label + " · " + Math.round(w.daily.temperature_2m_min[i]) + "–" + Math.round(w.daily.temperature_2m_max[i]) + "℃";
   }
+  // 取天气：没取到就过一会儿再试（最多 4 次），切回 App 时也再试；不会因为失败一次就一整天没有
+  var weatherTries = 0, weatherBusy = false;
   function loadWeather() {
     var c = CFG.weather || {};
-    if (c.latitude == null || c.longitude == null) return;
+    if (c.latitude == null || c.longitude == null || weatherBusy) return;
     var w = LS.get("mp:weather", null);
-    if (w && w.day === todayIso()) return;
+    if (w && w.day === todayIso() && w.daily && w.daily.time && w.daily.time.indexOf(todayIso()) !== -1) return;
+    weatherBusy = true;
+    var ctl = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 12000);
     fetch("https://api.open-meteo.com/v1/forecast?latitude=" + c.latitude + "&longitude=" + c.longitude +
-      "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=8")
-      .then(function (r) { return r.json(); })
-      .then(function (j) { if (j && j.daily) { LS.set("mp:weather", { day: todayIso(), daily: j.daily }); renderAll(); } })
-      .catch(function () {});
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=8", { signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (j) {
+        if (!j || !j.daily || !j.daily.time) throw new Error("empty");
+        LS.set("mp:weather", { day: todayIso(), daily: j.daily }); weatherTries = 0; renderAll();
+      })
+      .catch(function () { if (++weatherTries < 4) setTimeout(loadWeather, 15000 * weatherTries); })
+      .then(function () { clearTimeout(timer); weatherBusy = false; });
   }
   function dayMetaHTML(id) {
     var st = D.solarTerm(fromIso(id));
@@ -2330,6 +2339,7 @@
     var lastDay = todayIso();
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) return;
+      weatherTries = 0; loadWeather();
       if (todayIso() !== lastDay) { lastDay = todayIso(); ui.planDay = tomorrowIso(); loadWeather(); queueRender(); }
     });
   }
