@@ -32,10 +32,11 @@
           <div class="notify-banner" hidden></div>
           <div id="plan-area">
             <div class="day-head">
-              <div class="day-when">定计划</div>
               <div class="day-date" id="plan-date"></div>
               <div class="day-meta" id="plan-meta"></div>
             </div>
+
+            <div class="sec card-sec acc-orange" id="tonight-check" hidden></div>
 
             <div class="sec card-sec acc-red">
               <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">😋</span>大家最近想吃 <span class="hint">家里人点的</span></h2>
@@ -51,8 +52,11 @@
                 <div id="guests-mom" hidden></div>
               </div>
               <div id="dinner-plan" style="margin-top:12px"></div>
-              <button type="button" class="fold-btn" id="bf-fold" aria-expanded="false" aria-controls="breakfast"></button>
-              <div id="breakfast" hidden></div>
+            </div>
+
+            <div class="sec card-sec acc-gold">
+              <h2 class="sec-title"><span class="sec-ic" aria-hidden="true">🥣</span>大家的早饭 <span class="hint" id="bf-title-day"></span></h2>
+              <div id="breakfast"></div>
             </div>
           </div>
 
@@ -85,7 +89,6 @@
             <button id="dtab-menu" type="button" role="tab">🍲 本周菜单<small>妈妈做什么</small></button>
           </div>
           <div class="day-head">
-            <div class="day-when" id="fam-when">我的安排</div>
             <div class="day-date" id="fam-date"></div>
             <div class="day-meta" id="fam-meta"></div>
           </div>

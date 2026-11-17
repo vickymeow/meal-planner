@@ -237,3 +237,28 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
 .notify-banner .nb-yes { border: none; background: linear-gradient(135deg,#3a8a68,#2e7d5b); color: #fff; }
 .notify-banner .nb-no { border: 1.5px solid #e0d3bf; background: #fff; color: #6f6154; flex: 0 0 auto; padding: 0 16px; }
 #notify-sec .home-sum { margin: 10px 0 4px; }
+
+/* 想吃：已经排进晚饭的 */
+.chip.planned { background: #eef6ee !important; border-color: #cfe3c6 !important; opacity: .85; }
+.planned-tag { display: inline-block; margin-left: 6px; font-size: 13px; font-weight: 800; color: #2e7d5b; }
+/* 今天的菜做了吗 */
+.tc-row { padding: 10px 0; border-top: 1px solid #f3e9da; }
+.tc-row:first-of-type { border-top: none; }
+.tc-name { font-size: 21px; font-weight: 800; color: #2b2118; }
+.tc-name small { display: block; font-size: 14px; font-weight: 700; color: #b3541e; }
+.tc-acts { display: flex; gap: 10px; margin-top: 8px; }
+.tc-acts button { flex: 1; min-height: 52px; border-radius: 14px; font-family: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
+.tc-yes { border: none; background: linear-gradient(135deg,#3a8a68,#2e7d5b); color: #fff; }
+.tc-no { border: 1.5px solid #e0d3bf; background: #fff; color: #6f6154; }
+/* 做法页最下面的小按钮：两个一排，先改内容再改照片 */
+.rec-acts.rec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rec-acts.rec-grid .mini-btn { min-height: 48px; }
+/* 页签下面没有小标签了，日期紧跟页签 */
+.g-day-btn .t-sub br + * { display: block; }
+/* 大家的早饭：一人一行 */
+.bf-line { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid #f3e9da; font-size: 18px; line-height: 1.45; }
+.bf-line:first-child { border-top: none; padding-top: 0; }
+.bf-line b { flex: 0 0 3.2em; font-weight: 800; }
+.bf-line .bl-what { flex: 1; min-width: 0; font-weight: 700; color: #2b2118; }
+.bf-line.none .bl-what, .bf-line.none { color: #8a7967; }
+.bf-line .mini-btn { flex: 0 0 auto; min-height: 44px; }
