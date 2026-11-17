@@ -160,14 +160,46 @@
     if (iso(d) === iso(addDays(now, -1))) return "昨天 " + hm;
     return (d.getMonth() + 1) + "/" + d.getDate() + " " + hm;
   }
+  // 动态里：菜名能点开做法，提到的人带小头像
+  function actDot(p) {
+    if (!p) return '<span class="act-dot act-home" aria-hidden="true">🏠</span>';
+    var src = avatarSrc(p.id);
+    if (src) return '<img class="act-dot act-img" src="' + esc(src) + '" alt="" aria-hidden="true">';
+    return '<span class="act-dot act-' + p.id + '" aria-hidden="true">' + esc(p.initial) + "</span>";
+  }
+  function miniAv(p) {
+    var src = avatarSrc(p.id);
+    return src ? '<img class="mini-av" src="' + esc(src) + '" alt="">' : '<span class="mini-av act-' + p.id + '" aria-hidden="true">' + esc(p.initial) + "</span>";
+  }
+  function richText(text) {
+    var names = allDishes().map(function (d) { return d.name; }).filter(function (n) { return n && n.length > 1; });
+    var tokens = names.map(function (n) { return { k: "dish", s: n }; })
+      .concat(D.PEOPLE.map(function (p) { return { k: "p", s: p.name, p: p }; }))
+      .sort(function (a, b) { return b.s.length - a.s.length; });
+    var out = "", i = 0, str = String(text || "");
+    while (i < str.length) {
+      var hit = null;
+      for (var j = 0; j < tokens.length; j++) if (str.substr(i, tokens[j].s.length) === tokens[j].s) { hit = tokens[j]; break; }
+      if (!hit) { out += esc(str[i]); i++; continue; }
+      if (hit.k === "dish") out += '<span class="dish-link-txt" role="button" tabindex="0" data-dish="' + esc(hit.s) + '">' + esc(hit.s) + "</span>";
+      else out += '<span class="who-ref">' + miniAv(hit.p) + esc(hit.s) + "</span>";
+      i += hit.s.length;
+    }
+    return out;
+  }
   function renderHistory() {
     var logs = S.list("log:").map(function (x) { return x.data; }).sort(function (a, b) { return (b.t || 0) - (a.t || 0); }).slice(0, 20);
     document.querySelectorAll(".history-box").forEach(function (box) {
+      if (!box.dataset.wired) {
+        box.dataset.wired = "1";
+        var go = function (e) { var t = e.target.closest && e.target.closest(".dish-link-txt"); if (t) { e.stopPropagation(); openRecipe(t.getAttribute("data-dish")); } };
+        box.addEventListener("click", go);
+        box.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(e); } });
+      }
       if (!logs.length) { box.innerHTML = '<div class="act-item"><span class="act-main">还没有动态。谁点了菜、定了饭，这里马上能看到。</span></div>'; return; }
       box.innerHTML = logs.map(function (l, i) {
         var p = person(l.who);
-        var dot = p ? '<span class="act-dot act-' + p.id + '" aria-hidden="true">' + esc(p.initial) + "</span>" : '<span class="act-dot act-home" aria-hidden="true">🏠</span>';
-        return '<div class="act-item">' + dot + '<span class="act-main">' + (p ? "<b>" + esc(p.name) + "</b>" : "") + esc(l.text) +
+        return '<div class="act-item">' + actDot(p) + '<span class="act-main">' + (p ? "<b>" + esc(p.name) + "</b>" : "") + richText(l.text) +
           '<small style="display:block;font-size:12.5px;color:#a08b6d;font-weight:600">' + timeLabel(l.t) + "</small></span>" +
           (i === 0 ? '<span class="act-new">最新</span>' : "") + "</div>";
       }).join("");

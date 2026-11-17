@@ -296,6 +296,18 @@ await M.click("#nav-today");
 check("妈妈屏只有一个「家里动态」", (await M.locator("#view-today .activity-sec").count()) === 1);
 const order = await M.evaluate(() => { const secs = [...document.querySelectorAll("#view-today .sec")]; return secs.findIndex((s) => s.classList.contains("activity-sec")) >= secs.length - 2; });
 check("「家里动态」在页面最下面", order);
+const feedLink = M.locator("#view-today .history-box .dish-link-txt").first();
+check("家里动态里的菜名能点", (await feedLink.count()) > 0);
+if (await feedLink.count()) {
+  const dn = await feedLink.textContent();
+  await feedLink.scrollIntoViewIfNeeded(); await feedLink.click();
+  await M.waitForTimeout(300);
+  check("点动态里的菜名打开做法", (await M.locator(".sheet").innerText()).includes(dn), dn);
+  await M.keyboard.press("Escape"); await M.evaluate(() => document.querySelector(".sheet-close")?.click());
+  await M.waitForTimeout(300);
+}
+await M.locator("#view-today .activity-sec").screenshot({ path: `${SHOTS}/feed.png` });
+check("家里动态里提到的人带小头像", (await M.locator("#view-today .history-box .who-ref .mini-av").count()) > 0);
 
 // 语音助手（妈妈）：AI 没开通时用本地规则听懂 → 确认页 → 写入
 await M.click("#voice-fab", { force: true }); // 按钮有呼吸动画
