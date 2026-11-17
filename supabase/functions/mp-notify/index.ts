@@ -121,11 +121,14 @@ Deno.serve(async (req) => {
     if (!tok || body.token !== tok) return json({ error: "forbidden" }, 403);
     if (body.task === "reminder") return json(await reminder());
     const log = body.log || {}, h = String(body.h || "");
-    const r = routeLog(String(log.who || ""), String(log.text || ""));
+    // 动态里写明了要告诉谁（比如「生煎包家里有了」只告诉想吃的人）
+    const direct = (Array.isArray(log.to) ? log.to : []).filter((p: unknown) => typeof p === "string" && NAMES[p as string]);
+    const r = direct.length ? { to: direct as string[], tag: "stock" } : routeLog(String(log.who || ""), String(log.text || ""));
     if (!r) return json({ skipped: true });
     const to = r.to.filter((p) => p !== log.who);
     const name = NAMES[log.who] || "家里";
-    return json(await sendTo(h, to, { title: "爱心厨房", body: name + String(log.text || "").slice(0, 120), tag: r.tag }));
+    const text = String(log.text || "").slice(0, 120);
+    return json(await sendTo(h, to, { title: "爱心厨房", body: direct.length ? text : name + text, tag: r.tag }));
   }
 
   // 手机来的：要家庭密钥

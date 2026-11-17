@@ -262,3 +262,20 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
 .bf-line .bl-what { flex: 1; min-width: 0; font-weight: 700; color: #2b2118; }
 .bf-line.none .bl-what, .bf-line.none { color: #8a7967; }
 .bf-line .mini-btn { flex: 0 0 auto; min-height: 44px; }
+
+/* 定计划里的早饭：晚饭上面的一小条 */
+.bf-strip { margin-top: 14px; background: #fff6df; border: 1.5px solid #f0d48a; border-radius: 16px; padding: 12px 14px; }
+.bf-strip .bs-hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 15.5px; font-weight: 800; color: #8a5a00; }
+.bf-strip .bs-hd .mini-btn { min-height: 44px; flex: 0 0 auto; }
+.bf-strip .bs-bd { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 8px; font-size: 17px; line-height: 1.5; font-weight: 600; }
+.bf-strip .bs-one { white-space: normal; }
+.bf-strip .bs-none { color: #8a7967; }
+/* 想吃的早饭、吃完了 */
+.bf-wish-tag { display: inline-block; margin-left: 6px; font-size: 13px; font-weight: 800; color: #8a5a00; background: #fff6df; border: 1px solid #f0c078; border-radius: 999px; padding: 1px 9px; }
+.out-tag { display: inline-block; margin-left: 6px; font-size: 12.5px; font-weight: 800; color: #b0703a; background: #f6efe4; border-radius: 999px; padding: 1px 9px; vertical-align: 2px; }
+.pick-card.out { opacity: .55; filter: grayscale(.6); }
+.menu-row.out { background: #f6efe4 !important; }
+.menu-row.out img, .menu-row.out .dish-tile { opacity: .55; filter: grayscale(.6); }
+.stock-btn { border-color: #e0d3bf !important; color: #6f6154 !important; }
+.stock-btn.back { border-color: #2e7d5b !important; color: #2e7d5b !important; background: #eef6ee !important; }
+.bf-new-btn { margin-top: 0; }

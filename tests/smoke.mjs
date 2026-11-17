@@ -131,14 +131,16 @@ await syncBoth(M, C);
 check("起步菜谱写进同步库（一次）", db.has("meta:seeded") && db.has("dish:乌冬面") && db.has("dish:清蒸鲈鱼"));
 
 // 妈妈屏：「周几」在「妈妈定晚饭」里面，不在最上面
-check("妈妈屏「周几」在「妈妈定晚饭」那块里", await M.evaluate(() => document.getElementById("day-strip").closest(".sec").innerText.includes("妈妈定晚饭")));
+check("妈妈屏「周几」在「妈妈定晚饭」那块里", await M.evaluate(() => document.getElementById("day-strip").closest(".sec").innerText.includes("这一天吃什么")));
 const bfBox = await M.locator("#breakfast").boundingBox();
-check("定计划里有「大家的早饭」：一人一行字，不放照片", await M.locator("#breakfast").isVisible() && (await M.locator("#breakfast .bf-line").count()) === 4 && (await M.locator("#breakfast img").count()) === 0 && bfBox.height < 260, Math.round(bfBox.height) + "px");
-const bfNames = await M.locator("#breakfast .bf-line b").allInnerTexts();
+const dnBox = await M.locator("#dinner-plan").boundingBox();
+check("定计划：早饭是晚饭上面的一小条，不放照片", await M.locator("#breakfast").isVisible() && (await M.locator("#breakfast .bs-one").count()) === 4 && (await M.locator("#breakfast img").count()) === 0 && bfBox.height < 230 && bfBox.y < dnBox.y, Math.round(bfBox.height) + "px");
+check("早饭图标换成日出", /🌅/.test(await M.locator("#breakfast").innerText()) && !/🥣/.test(await M.content()));
+const bfNames = await M.locator("#breakfast .bs-one b").allInnerTexts();
 check("按人排：Vicky、小陈在前", bfNames.join("、") === "Vicky、小陈、爸爸、妈妈", bfNames.join("、"));
 // 妈妈只能换自己的早饭
-check("妈妈屏早饭卡只有妈妈自己那行能换", (await M.locator("#breakfast .bf-line button").count()) === 1);
-await M.locator("#breakfast .bf-line button").click();
+check("妈妈屏早饭只能换自己的（一个「换我的」）", (await M.locator("#breakfast button").count()) === 1);
+await M.locator("#breakfast button").click();
 await M.locator(".sheet .pick-card", { hasText: "蒸饺" }).click();
 await M.locator(".sheet .sheet-cta").first().click();
 await M.waitForTimeout(150);
@@ -449,6 +451,44 @@ check("界面没有英文混写", eng.length === 0, eng.join(","));
 // 通知：首页有提示条；「我的」里能打开
 await M.click("#nav-today"); await M.waitForTimeout(150);
 check("首页有「打开通知」提示条（说清楚通知什么）", await M.locator("#view-today .notify-banner").isVisible() && /有人点|家里人点/.test(await M.locator("#view-today .notify-banner").innerText()));
+// 想吃新的早饭：家里还没有的 → 进「大家最近想吃」→ 妈妈标「家里有了」→ 进菜谱 → 妈妈标「吃完了」
+await C.click("#nav-today"); await C.click("#dtab-order"); await C.waitForTimeout(150);
+if (!(await C.locator("#fam-breakfast").isVisible())) await C.click("#fam-bf-toggle");
+await C.locator("#fam-breakfast .d-row").nth(3).locator("button").click();
+check("点早饭最下面是「想吃新的早饭」，不再直接写进那天", await C.locator(".sheet .bf-new-btn").isVisible() && !/写下来/.test(await C.locator(".sheet").innerText()));
+await C.locator(".sheet .bf-new-btn").click();
+await C.fill("#bf-wish-input", "生煎包");
+await C.locator(".sheet .sheet-cta").click(); await C.waitForTimeout(200);
+await syncBoth(C, M);
+check("新早饭不定进哪天，也还不在早饭菜谱里", !/生煎包/.test(await C.locator("#fam-breakfast").innerText()) && db.get("dish:生煎包").data.stock === "wish");
+await M.click("#nav-today"); await M.click("#tab-plan"); await M.waitForTimeout(150);
+const bfChip = M.locator("#wishes .chip", { hasText: "生煎包" });
+check("妈妈在「大家最近想吃」里看到生煎包，带早饭标记", /🌅 早饭/.test(await bfChip.innerText()));
+await bfChip.click();
+check("点开有「加到买菜清单」和「家里有了」", /加到买菜清单/.test(await M.locator(".sheet").innerText()) && /家里有了/.test(await M.locator(".sheet").innerText()));
+await M.locator(".sheet .sheet-cta").click(); await M.waitForTimeout(200);
+await syncBoth(M, C);
+const haveLog = [...db.values()].find((x) => x.id.startsWith("log:") && /生煎包家里有了/.test(x.data.text || ""));
+check("家里有了：从想吃里拿掉，只通知想吃的人（小陈）", !/生煎包/.test(await M.locator("#wishes").innerText()) && haveLog && haveLog.data.to.join() === "chen" && !db.get("dish:生煎包").data.stock, haveLog && JSON.stringify(haveLog.data.to));
+await C.locator("#fam-breakfast .d-row").nth(3).locator("button").click();
+await C.locator(".sheet .pick-card", { hasText: "生煎包" }).click();
+await C.locator(".sheet .sheet-cta").first().click(); await C.waitForTimeout(150);
+check("家里有了以后，想吃的人自己选哪天吃", /生煎包/.test(await C.locator("#fam-breakfast .d-row").nth(3).innerText()));
+await syncBoth(C, M);
+await M.click("#nav-menu"); await M.locator("#menu-tabs button", { hasText: "早饭" }).click();
+await M.locator(".menu-row", { hasText: "生煎包" }).locator(".stock-btn").click(); await M.waitForTimeout(200);
+await syncBoth(M, C);
+const outLog = [...db.values()].find((x) => x.id.startsWith("log:") && /生煎包吃完了/.test(x.data.text || ""));
+check("妈妈点「吃完了」：变灰，提醒点了的人换一样", /吃完了/.test(await M.locator(".menu-row", { hasText: "生煎包" }).innerText()) && outLog && outLog.data.to.join() === "chen" && /换一样/.test(await C.locator("#fam-breakfast .d-row").nth(3).innerText()));
+await C.locator("#fam-breakfast .d-row").nth(0).locator("button").click();
+check("吃完了的早饭家里人点不了", (await C.locator(".sheet .pick-card.out", { hasText: "生煎包" }).count()) === 1);
+await C.locator(".sheet .sheet-close").last().click();
+await C.click("#nav-menu"); await C.locator("#menu-tabs button", { hasText: "早饭" }).click();
+check("「吃完了」按钮只有妈妈有", (await C.locator(".stock-btn").count()) === 0);
+await M.locator(".menu-row", { hasText: "生煎包" }).locator(".stock-btn").click(); await M.waitForTimeout(150);
+check("妈妈点「又有了」就恢复", !/吃完了，等再买/.test(await M.locator(".menu-row", { hasText: "生煎包" }).innerText()));
+await M.locator("#menu-tabs button", { hasText: "晚饭" }).click(); await C.locator("#menu-tabs button", { hasText: "晚饭" }).click();
+await M.click("#nav-today"); await C.click("#nav-today");
 // 我的：换人、反馈
 await M.click("#nav-profile");
 await M.locator("#notify-sec .sheet-cta").click();
