@@ -188,12 +188,19 @@ check("客人那天妈妈屏显示客人", /姑姑一家/.test(await M.locator("
 
 // 5. 菜谱：按「鱼」找；每道菜点得进做法
 await M.click("#nav-menu");
+check("菜谱分早饭 / 晚饭两个页签", (await M.locator("#menu-tabs button").count()) === 2 && /晚饭/.test(await M.locator("#menu-tabs button.on").innerText()));
+await M.locator("#menu-tabs button", { hasText: "早饭" }).click();
+check("早饭页签只有早饭菜", /乌冬面/.test(await M.locator("#menu-list").innerText()) && !/红烧肉/.test(await M.locator("#menu-list").innerText()));
+await M.locator("#menu-tabs button", { hasText: "晚饭" }).click();
 await M.locator(".filter-chip", { hasText: "鱼" }).click();
 const fishText = await M.locator("#menu-list").innerText();
 check("点「鱼」列出鱼的做法", ["清蒸鲈鱼", "红烧带鱼", "松鼠桂鱼", "鱼头豆腐汤"].every((n) => fishText.includes(n)) && !fishText.includes("红烧肉"));
 await M.locator(".menu-row", { hasText: "红烧带鱼" }).locator(".mn-name").click();
 check("点菜名打开做法（配料 + 步骤）", (await M.locator(".sheet .ing-list li").count()) > 2 && /怎么做/.test(await M.locator(".sheet").innerText()));
-check("做法页能直接定进晚饭", /定进.*晚饭/.test(await M.locator(".sheet .sheet-cta").innerText()));
+check("做法页有 7 天可以选", (await M.locator(".sheet .g-day-btn").count()) === 7);
+await M.locator(".sheet .g-day-btn").nth(4).click(); await M.waitForTimeout(200);
+await M.locator(".sheet .g-day-btn").nth(5).click(); await M.waitForTimeout(200);
+check("做法页一次定进好几天", (await M.locator(".sheet .g-day-btn.on").count()) === 2 && /红烧带鱼/.test(await M.evaluate(() => JSON.stringify([4, 5].map((i) => { const d = new Date(); d.setDate(d.getDate() + i); const iso = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); return MPStore.get("dinner:" + iso); })))));
 await M.screenshot({ path: `${SHOTS}/04-recipe.png` });
 await M.locator(".sheet .sheet-close").last().click();
 await M.locator(".filter-chip", { hasText: "全部" }).click();
@@ -293,6 +300,28 @@ const local = await browser.newContext({ ...devices["iPhone 13"] });
 const L = await local.newPage();
 await L.goto(`${BASE}/?me=vicky`);
 check("没有链接密钥时提示还没连上同步", /还没连上全家同步/.test(await L.locator("#sync-bar").innerText()));
+
+// 想吃的排最上 + 感谢的话
+await C.click("#nav-menu");
+await C.locator("#menu-tabs button", { hasText: "晚饭" }).click();
+await C.locator(".menu-row", { hasText: "小酥肉" }).locator(".want-btn").click();
+check("点菜时有感谢的话可以选", (await C.locator(".sheet .thanks-chip").count()) === 3);
+await C.locator(".sheet .thanks-chip", { hasText: "妈妈辛苦啦" }).click();
+await C.locator(".sheet .crave-btn.lv2").click();
+await C.waitForTimeout(200);
+check("想吃的菜排在菜谱最上面", /小酥肉/.test(await C.locator("#menu-list .menu-row").first().innerText()));
+check("想吃带着那句感谢的话", /妈妈辛苦啦/.test(await C.locator("#fam-wishes").innerText()));
+// 加新菜：排在上面，加完问想不想吃
+await C.click("#menu-add-btn");
+await C.fill(".sheet input.add-input", "酸菜鱼");
+await C.locator(".sheet .sheet-cta").click();
+await C.locator(".sheet .sheet-cta").click();
+check("加完新菜问「你想吃吗」", /你想吃吗/.test(await C.locator(".sheet h3").innerText()));
+await C.locator(".sheet .sheet-close").first().click();
+await C.waitForTimeout(200);
+const rowsNow = await C.locator("#menu-list .menu-row .mn-name").allInnerTexts();
+check("新加的菜排在上面（想吃的之后）", /小酥肉/.test(rowsNow[0]) && /酸菜鱼/.test(rowsNow[1]), rowsNow.slice(0, 3).join(" | ").replace(/\n/g, " "));
+await C.screenshot({ path: `${SHOTS}/09-menu-family.png` });
 
 check("妈妈手机没有脚本报错", mom.errors.length === 0, mom.errors.join(" | "));
 check("小陈手机没有脚本报错", chen.errors.length === 0, chen.errors.join(" | "));
