@@ -138,3 +138,6 @@ textarea.add-input { min-height: 110px; resize: vertical; line-height: 1.6; }
 .assist-hint { font-size: 14.5px; color: #6f6154; margin: 8px 2px 0; }
 .ai-btn { width: 100%; min-height: 54px; margin-top: 14px; border-radius: 14px; border: 2px solid #7c5cc4; background: linear-gradient(180deg,#f7f3ff,#ece4ff); color: #4b2f94; font-family: inherit; font-size: 17.5px; font-weight: 800; cursor: pointer; }
 .ai-btn:disabled { opacity: .6; }
+/* 在不在家：一行小结 */
+.home-sum { font-size: 18px; font-weight: 800; color: #2e7d5b; background: #eef6ee; border: 1.5px solid #cfe3c6; border-radius: 14px; padding: 12px 14px; }
+.home-sum.away { color: #b03a17; background: #fdeee6; border-color: #f3b08a; }

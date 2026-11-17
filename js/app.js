@@ -67,6 +67,7 @@
     guestCount: 2,
     customOpen: false,
     momBfOpen: false,
+    homeOpen: false,
     famDay: todayIso(),
     famBfOpen: false,
     othersBfOpen: false,
@@ -610,33 +611,25 @@
     if (days().indexOf(ui.famDay) === -1) ui.famDay = todayIso();
     $("fam-when").textContent = pname(me) + "的这屏";
     $("fam-date").textContent = "今天 " + t.md + " " + t.weekday;
-    // 1 · 这几天在不在家（先定这个）
+    // 1 · 这几天在不在家：默认都在家，不在家时再展开选
     var hb = $("fam-home"); hb.innerHTML = "";
-    var grid = el("div", "home-days big");
-    days().forEach(function (id) {
-      var h = isHome(id, me), d = dayInfo(id);
-      var b = el("button", "home-day" + (h ? "" : " off"), "<b>" + (d.rel || d.short) + "</b><small>" + d.num + "日</small><span>" + (h ? "✓ 在家吃" : "不在家") + "</span>");
-      b.type = "button"; b.setAttribute("aria-label", d.md + (h ? "在家吃饭，点一下改成不在家" : "不在家，点一下改成在家吃饭"));
-      b.addEventListener("click", function () { toggleHome(id); });
-      grid.appendChild(b);
-    });
-    hb.appendChild(grid);
-    // 2 · 妈妈做什么：先选周几
-    dayStrip($("fam-day-strip"), ui.famDay, function (id) { ui.famDay = id; renderFamily(); });
-    var box = $("fam-tonight"); box.innerHTML = "";
-    var fd = ui.famDay, fdi = dayInfo(fd);
-    var card = el("div", "tonight-card", '<div class="plan-meal">' + esc(fdi.md + " " + fdi.weekday + (fdi.rel ? "（" + fdi.rel + "）" : "")) + " · 晚饭 · " + totalPeople(fd) + " 人</div>");
-    var dn = dinner(fd);
-    if (!dn.length) card.appendChild(el("div", null, '<div style="font-size:18px;color:#8a7967">妈妈还没定这天的。</div>'));
-    dn.forEach(function (name) {
-      var w = wishOf(name);
-      var row = el("div", "dish-row", dishMedia(name) + '<div class="dish-info"><div class="dish-name">' + esc(name) + '</div><div class="dish-from">' + (w ? esc(pname(w.person)) + "想吃的" : "妈妈定的") + "</div></div>");
-      dishClickRow(row, name); card.appendChild(row);
-    });
-    if (guestCount(fd)) card.appendChild(el("div", "plan-serves", "🎉 有客人：" + esc(guestText(fd))));
-    if (!isHome(fd, me)) card.appendChild(el("div", "plan-serves", "你这天不在家吃。"));
-    box.appendChild(card);
-    // 3 · 我的早饭：总开关 + 可折叠
+    var awayDays = days().filter(function (id) { return !isHome(id, me); });
+    hb.appendChild(el("div", "home-sum" + (awayDays.length ? " away" : ""), awayDays.length
+      ? "🚶 " + esc(awayDays.map(function (id) { return dayName(id); }).join("、")) + "不在家吃，其他天都在家"
+      : "🏠 这几天都在家吃饭 ✓"));
+    hb.appendChild(btn("fold-btn", ui.homeOpen ? "收起 ▲" : (awayDays.length ? "改一下哪天不在家 ▼" : "有几天不在家？点这里选 ▼"), function () { ui.homeOpen = !ui.homeOpen; renderFamily(); }));
+    if (ui.homeOpen) {
+      var grid = el("div", "home-days big");
+      days().forEach(function (id) {
+        var h = isHome(id, me), d = dayInfo(id);
+        var b = el("button", "home-day" + (h ? "" : " off"), "<b>" + (d.rel || d.short) + "</b><small>" + d.num + "日</small><span>" + (h ? "✓ 在家吃" : "不在家") + "</span>");
+        b.type = "button"; b.setAttribute("aria-label", d.md + (h ? "在家吃饭，点一下改成不在家" : "不在家，点一下改成在家吃饭"));
+        b.addEventListener("click", function () { toggleHome(id); });
+        grid.appendChild(b);
+      });
+      hb.appendChild(grid);
+    }
+    // 2 · 我的早饭：总开关 + 可折叠
     var off = bfOff(me);
     var sw = $("fam-bf-switch"); sw.innerHTML = "";
     var swRow = el("div", "bf-switch", '<span class="bs-txt">' + (off ? "我不吃早饭，不用点" : "我吃早饭") + "</span>");
@@ -669,7 +662,7 @@
       if (home) row.appendChild(btn("mini-btn", pick ? "换一道" : "选早饭", function () { openBreakfast(id); }, "点" + d.short + "的早饭"));
       bf.appendChild(row);
     });
-    // 4 · 想吃
+    // 3 · 想吃
     var wbox = $("fam-wishes"); wbox.innerHTML = "";
     var mine = wishes().filter(function (w) { return w.person === me; });
     var g = el("div", "wish-group", '<div class="wish-who">' + esc(pname(me)) + " <span>想吃妈妈做的</span></div>");
@@ -790,17 +783,21 @@
   $("dtab-menu").addEventListener("click", function () { showFamTab("menu"); });
   $("fam-order-btn").addEventListener("click", openOrderSheet);
 
-  // 今日菜单：早饭只显示自己的（别人的折起来），晚饭是一起吃的，全显示
+  // 今日菜单 = 妈妈做什么：默认今天，可以点别的日子；晚饭一起吃全显示，早饭只显示自己的（别人的折起来）
   function renderFamilyToday() {
-    var id = todayIso(), box = $("fam-today-menu"); box.innerHTML = "";
-    var card = el("div", "tonight-card", '<div class="plan-meal">晚饭 · ' + totalPeople(id) + " 个人吃" + (guestCount(id) ? "（含客人 " + guestCount(id) + " 位）" : "") + "</div>");
+    if (days().indexOf(ui.famDay) === -1) ui.famDay = todayIso();
+    var id = ui.famDay, di = dayInfo(id);
+    dayStrip($("fam-day-strip"), id, function (x) { ui.famDay = x; renderFamilyToday(); });
+    var box = $("fam-today-menu"); box.innerHTML = "";
+    var card = el("div", "tonight-card", '<div class="plan-meal">' + esc(di.md + " " + di.weekday + (di.rel ? "（" + di.rel + "）" : "")) + " · 晚饭 · " + totalPeople(id) + " 个人吃" + (guestCount(id) ? "（含客人 " + guestCount(id) + " 位）" : "") + "</div>");
     var dn = dinner(id);
-    if (!dn.length) card.appendChild(el("div", null, '<div style="font-size:17px;color:#8a7967">妈妈还没定今晚的。</div>'));
+    if (!dn.length) card.appendChild(el("div", null, '<div style="font-size:17px;color:#8a7967">妈妈还没定这天的晚饭。</div>'));
     dn.forEach(function (name) {
       var w = wishOf(name);
       var row = el("div", "dish-row", dishMedia(name) + '<div class="dish-info"><div class="dish-name">' + esc(name) + '</div><div class="dish-from">' + (w ? esc(pname(w.person)) + "想吃的" : "妈妈定的") + "</div></div>");
       dishClickRow(row, name); card.appendChild(row);
     });
+    if (!isHome(id, ui.me)) card.appendChild(el("div", "plan-serves", "你这天不在家吃。"));
     var bfs = bfList(id).filter(function (it) { return it.kind !== "skip"; });
     var mine = bfs.filter(function (it) { return it.person === ui.me; });
     var others = bfs.filter(function (it) { return it.person !== ui.me; });
@@ -813,7 +810,7 @@
       if (it.kind !== "any") dishClickRow(row, it.name);
       return row;
     }
-    if (!mine.length) card.appendChild(el("div", null, '<div style="font-size:17px;color:#8a7967">今天不吃早饭。</div>'));
+    if (!mine.length) card.appendChild(el("div", null, '<div style="font-size:17px;color:#8a7967">这天不吃早饭。</div>'));
     mine.forEach(function (it) { card.appendChild(bfRow(it)); });
     if (others.length) {
       card.appendChild(btn("fold-btn", (ui.othersBfOpen ? "收起其他人的早饭 ▲" : "其他人的早饭（" + others.length + " 份）▼"), function () { ui.othersBfOpen = !ui.othersBfOpen; renderFamilyToday(); }));
@@ -1001,7 +998,7 @@
     }
     var row2 = el("div", "rec-acts");
     row2.appendChild(btn("mini-btn", "📷 换照片", function () { pickPhoto({ kind: "dish", id: name }); }));
-    if (S.get("photo:" + name)) row2.appendChild(btn("mini-btn", "用回自动配图", function () { S.del("photo:" + name); openRecipe(name); }));
+    if (S.get("photo:" + name)) row2.appendChild(btn("mini-btn", "用回默认图", function () { S.del("photo:" + name); openRecipe(name); }));
     row2.appendChild(btn("mini-btn", "✏️ 改配料做法", function () { openDishEditor(name); }));
     sheet.appendChild(row2);
     sheet.appendChild(closeBtn("知道了，回去"));

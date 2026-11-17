@@ -8,7 +8,7 @@ window.MP_CONFIG = {
   weather: { latitude: 37.5841, longitude: -122.3661 }, // Burlingame, CA
   // 多久同步一次（毫秒）。打开 App、切回来时也会立刻同步。
   pollMs: 8000,
-  // 没上传照片的菜，用 Pollinations 自动配一张图（免费、不用 key）。配不出来就显示暖色方块。
+  // 自动配图（Pollinations）先关掉：免费额度用完时它会返回一张写着「限制次数」的图。没有照片的菜显示暖色方块。
   // 家里人可以在每道菜的做法页点「换照片」换成自己拍的。
-  autoPhotos: true
+  autoPhotos: false
 };

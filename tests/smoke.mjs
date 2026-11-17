@@ -115,7 +115,9 @@ await M.screenshot({ path: `${SHOTS}/01-mom-plan.png` });
 check("小陈打开就是家里人那屏", await C.locator("#view-family").isVisible());
 check("没有「一次点好几天」批量按钮", !(await C.content()).includes("一次点好几天"));
 check("家里人屏第一块是「在不在家吃饭」", await C.evaluate(() => document.querySelector("#family-main .sec").innerText.includes("在家吃饭吗")));
-check("在不在家：7 天都能点", (await C.locator("#fam-home .home-day").count()) === 7);
+check("在不在家：默认都在家，折成一行", /都在家吃饭/.test(await C.locator("#fam-home .home-sum").innerText()) && (await C.locator("#fam-home .home-day").count()) === 0);
+await C.locator("#fam-home .fold-btn").click(); await C.waitForTimeout(100);
+check("在不在家：展开后 7 天都能点", (await C.locator("#fam-home .home-day").count()) === 7);
 check("我的早饭默认折起来", !(await C.locator("#fam-breakfast").isVisible()));
 await C.click("#fam-bf-toggle");
 check("早饭按天一排排列（7 天）", (await C.locator("#fam-breakfast .d-row").count()) === 7);
@@ -126,6 +128,7 @@ check("点一下就定好今天早饭", /馄饨/.test(await C.locator("#fam-brea
 check("有「今日菜单」页签", await C.locator("#dtab-menu").isVisible());
 await C.click("#dtab-menu");
 await C.waitForTimeout(150);
+check("今日菜单里能选周几看妈妈做什么，默认今天", (await C.locator("#fam-day-strip .day-chip").count()) === 7 && /今天/.test(await C.locator("#fam-day-strip .day-chip.on").innerText()));
 const tm = await C.locator("#fam-today-menu").innerText();
 check("今日菜单：晚饭在上，早饭只显示自己的，别人的折起来", /晚饭/.test(tm) && /我的早饭/.test(tm) && /其他人的早饭（\d 份）/.test(tm) && !/妈妈的/.test(tm), tm.replace(/\n/g, " ").slice(0, 120));
 await C.screenshot({ path: `${SHOTS}/02b-family-today.png` });
@@ -295,7 +298,7 @@ check("家里人说一句话听懂 3 件事（不在家 / 想吃 / 买菜）", a
 await C.screenshot({ path: `${SHOTS}/10-assistant.png` });
 await C.locator(".sheet .sheet-cta").click();
 await C.waitForTimeout(200);
-check("确认后都办好了", /不在家/.test(await C.locator("#fam-home .home-day").nth(1).innerText()) && /红烧带鱼/.test(await C.locator("#fam-wishes").innerText()));
+check("确认后都办好了", /明天不在家/.test(await C.locator("#fam-home .home-sum").innerText()) && /红烧带鱼/.test(await C.locator("#fam-wishes").innerText()));
 // 语音助手走 AI（假 Qwen）
 await C.click("#voice-fab", { force: true });
 await C.fill(".sheet .assist-input", "AI测试 那天不回来吃，想吃卤牛肉");
