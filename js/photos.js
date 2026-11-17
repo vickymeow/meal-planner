@@ -248,5 +248,53 @@ window.MP_PHOTOS = {
   "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
   "page": "https://commons.wikimedia.org/wiki/File:Stir-fried_Indian_Lettuce.jpg",
   "modified": false
+ },
+ "手撕包菜": {
+  "file": "photos/cabbage.jpg",
+  "author": "Paul Lowry",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Double_Cooked_Pork_-_Cheng%27s,_Baton_Rouge_Louisiana.jpg",
+  "modified": true
+ },
+ "蒸水蛋": {
+  "file": "photos/steamed-egg.jpg",
+  "author": "Tam3415",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Chinese_steamed_eggs_(cropped).jpg",
+  "modified": true
+ },
+ "小炒肉": {
+  "file": "photos/xiao-chao-rou.jpg",
+  "author": "CHENG SHIYI",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "page": "https://commons.wikimedia.org/wiki/File:Chinese_food_in_Hunan.jpg",
+  "modified": true
+ },
+ "土豆丝": {
+  "file": "photos/tudousi.jpg",
+  "author": "Ewan Munro from London, UK",
+  "license": "CC BY-SA 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Taste_of_Beijing,_Soho,_London_(4363975792).jpg",
+  "modified": true
+ },
+ "红烧鲫鱼": {
+  "file": "photos/braised-hairtail.jpg",
+  "author": "lazy fri13th",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Galchi-jorim_1.jpg",
+  "modified": false
+ },
+ "鱼": {
+  "file": "photos/braised-hairtail.jpg",
+  "author": "lazy fri13th",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Galchi-jorim_1.jpg",
+  "modified": false
  }
 };
