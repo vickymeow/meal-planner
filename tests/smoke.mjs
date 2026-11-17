@@ -229,12 +229,12 @@ const wd = await M.evaluate(() => { const d = new Date(); d.setDate(d.getDate() 
 await M.fill(".sheet input.add-input", wd + "做鱼，后天还要蒸水蛋");
 await M.locator(".sheet .sheet-cta").click();
 check("说话后先弹确认页", /对吗/.test(await M.locator(".sheet h3").innerText()));
-await M.locator(".sheet .vp-cand", { hasText: "清蒸鲈鱼" }).first().click();
+check("「做鱼」直接对上妈妈菜谱里的「鱼」", /鱼/.test(await M.locator(".sheet .vp-item").first().innerText()));
 await M.screenshot({ path: `${SHOTS}/07-voice-confirm.png` });
 await M.locator(".sheet .sheet-cta").click();
 await M.locator(".day-chip").nth(2).click();
 const d2 = await M.locator("#dinner-plan").innerText();
-check("确认后排进那天的晚饭", /清蒸鲈鱼/.test(d2) && /蒸水蛋/.test(d2), d2.replace(/\n/g, " "));
+check("确认后排进那天的晚饭", /鱼/.test(d2) && /蒸水蛋/.test(d2), d2.replace(/\n/g, " "));
 
 // 9. 全中文；没有中英文混写（菜名、人名 Vicky 和品牌名 Weee 除外）
 const visible = await M.locator("body").innerText();

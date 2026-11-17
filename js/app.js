@@ -841,7 +841,10 @@
         acts.appendChild(btn("ord-btn", "↑", function () { moveDish(list, idx, -1); }, "上移" + d.name));
         acts.appendChild(btn("ord-btn", "↓", function () { moveDish(list, idx, 1); }, "下移" + d.name));
         acts.appendChild(btn("mini-btn danger", "删掉", function () {
-          S.del("dish:" + d.name); log("菜谱里删掉了：" + d.name); toast("删掉了：" + d.name);
+          var m = S.get("meta:seeded");
+          var ops = [{ id: "dish:" + d.name, deleted: true }];
+          if (m) ops.push({ id: "meta:seeded", data: Object.assign({}, m, { deleted: (m.deleted || []).concat([d.name]) }) });
+          S.putMany(ops); log("菜谱里删掉了：" + d.name); toast("删掉了：" + d.name);
         }, "删掉" + d.name));
         row.appendChild(acts);
         box.appendChild(row);
@@ -1473,11 +1476,22 @@
 
   // 第一次连上、库里还是空的：放进起步菜谱（只放一次）。
   function maybeSeed() {
-    if (seeded()) return;
     if (S.household() && S.status() !== "ok") return;
+    var meta = S.get("meta:seeded");
+    if (meta) {
+      // 起步菜谱后来又加了菜（比如旧版里妈妈加的）：只补库里没有的，删过的也不再补回来
+      if ((meta.v || 1) >= (D.SEED_VERSION || 1)) return;
+      var have = {}; allDishes().forEach(function (d) { have[d.name] = true; });
+      var gone = meta.deleted || [];
+      var add = D.SEED_DISHES.filter(function (d) { return !have[d.name] && gone.indexOf(d.name) === -1; })
+        .map(function (d, i) { return { id: "dish:" + d.name, data: Object.assign({ order: 1000 + i }, d) }; });
+      add.push({ id: "meta:seeded", data: Object.assign({}, meta, { v: D.SEED_VERSION }) });
+      S.putMany(add);
+      return;
+    }
     var ops = D.SEED_DISHES.map(function (d, i) { return { id: "dish:" + d.name, data: Object.assign({ order: i }, d) }; });
     ops.push({ id: "staples", data: { list: ["牛奶", "面包", "鸡蛋"] } });
-    ops.push({ id: "meta:seeded", data: { v: 1, t: Date.now() } });
+    ops.push({ id: "meta:seeded", data: { v: D.SEED_VERSION || 1, t: Date.now() } });
     S.putMany(ops);
   }
 

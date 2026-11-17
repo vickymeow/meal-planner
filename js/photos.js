@@ -216,5 +216,37 @@ window.MP_PHOTOS = {
   "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
   "page": "https://commons.wikimedia.org/wiki/File:Doujiang_and_youtiao_Taipei.jpg",
   "modified": true
+ },
+ "红烧带鱼": {
+  "file": "photos/braised-hairtail.jpg",
+  "author": "lazy fri13th",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Galchi-jorim_1.jpg",
+  "modified": false
+ },
+ "鱼头豆腐汤": {
+  "file": "photos/fish-head-soup.jpg",
+  "author": "Alpha from Melbourne, Australia",
+  "license": "CC BY-SA 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Fish_Head_Noodle_in_Malaysia.jpg",
+  "modified": false
+ },
+ "青菜汤": {
+  "file": "photos/greens-soup.jpg",
+  "author": "Takeaway",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Tom_jued_tahoo.jpg",
+  "modified": true
+ },
+ "蚝油生菜": {
+  "file": "photos/oyster-lettuce.jpg",
+  "author": "Ceeseven",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "page": "https://commons.wikimedia.org/wiki/File:Stir-fried_Indian_Lettuce.jpg",
+  "modified": false
  }
 };
