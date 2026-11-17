@@ -360,10 +360,26 @@ await C.locator(".sheet .sheet-close").last().click();
 await C.click("#voice-fab", { force: true });
 await C.locator(".sheet .vp-mic").click();
 await C.waitForSelector("#rec-bar:not([hidden])");
-check("点说话后出现「正在听…说完点这里」红条", /正在听/.test(await C.locator("#rec-bar").innerText()));
+check("点说话后出现「正在听」红条", /正在听/.test(await C.locator("#rec-bar").innerText()));
 await C.waitForTimeout(1500);
 await C.locator("#rec-bar").click();
 await C.waitForSelector(".sheet .vp-item", { timeout: 15000 });
+await C.locator(".sheet .sheet-close").last().click();
+// 说完停一下就自动结束：换成「先说 1.2 秒、然后安静」的假声音
+await C.evaluate(() => {
+  navigator.mediaDevices.getUserMedia = async () => {
+    const ctx = new AudioContext(), osc = ctx.createOscillator(), g = ctx.createGain(), dst = ctx.createMediaStreamDestination();
+    g.gain.value = 0; osc.frequency.value = 220; osc.connect(g); g.connect(dst); osc.start();
+    setTimeout(() => { g.gain.value = 0.6; }, 600); setTimeout(() => { g.gain.value = 0; }, 1800);
+    return dst.stream;
+  };
+});
+await C.click("#voice-fab", { force: true });
+await C.locator(".sheet .vp-mic").click();
+await C.waitForSelector("#rec-bar:not([hidden])");
+const autoT0 = Date.now();
+await C.waitForSelector(".sheet .vp-item", { timeout: 9000 }).catch(() => {});
+check("说完停一下，不用点就自动结束", (await C.locator(".sheet .vp-item").count()) > 0, (Date.now() - autoT0) + "ms");
 check("录音转成 16k 单声道 WAV 发给 Qwen", lastAudio && lastAudio.riff === "RIFF" && lastAudio.wave === "WAVE" && lastAudio.rate === 16000 && lastAudio.bytes > 20000, JSON.stringify(lastAudio));
 check("听写回来的字自动接着听懂：周五不在家", /周五不在家吃饭/.test(await C.locator(".sheet .vp-item").first().innerText()), await C.locator(".sheet").innerText().then((t) => t.slice(0, 80).replace(/\n/g, " ")));
 await C.locator(".sheet .sheet-close").last().click();

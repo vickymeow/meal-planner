@@ -397,13 +397,37 @@
     if (!bar) { bar = el("button", "rec-bar"); bar.id = "rec-bar"; bar.type = "button"; $("screen").appendChild(bar); bar.addEventListener("click", function () { if (bar._click) bar._click(); }); }
     bar.innerHTML = text; bar._click = onClick; bar.hidden = !text;
   }
+  // 说完自动停：听到说话以后，安静约 1.6 秒就自己结束；一直没出声，8 秒后也结束
+  function watchSilence(ctx, stream, onSilence) {
+    try {
+      var src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser();
+      an.fftSize = 1024; src.connect(an);
+      var buf = new Float32Array(an.fftSize), t0 = Date.now(), noise = 0, n = 0, spoke = false, quietSince = 0;
+      var iv = setInterval(function () {
+        an.getFloatTimeDomainData(buf);
+        var sum = 0; for (var i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+        var rms = Math.sqrt(sum / buf.length), now = Date.now();
+        if (now - t0 < 400) { noise += rms; n++; return; } // 先听一下周围有多吵
+        var floor = n ? noise / n : 0, th = Math.max(0.015, floor * 2.5);
+        if (rms > th) { spoke = true; quietSince = 0; }
+        else if (spoke) { if (!quietSince) quietSince = now; if (now - quietSince > 1600) { clearInterval(iv); onSilence(); } }
+        else if (now - t0 > 8000) { clearInterval(iv); onSilence(); }
+      }, 100);
+      return function () { clearInterval(iv); try { src.disconnect(); } catch (e) {} };
+    } catch (e) { return function () {}; }
+  }
   function recordVoice(input, after) {
+    // 在点的那一下就建好声音环境（iPhone 要求）
+    var AC = window.AudioContext || window.webkitAudioContext, actx = null;
+    try { actx = new AC(); if (actx.resume) actx.resume(); } catch (e) { actx = null; }
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
       var chunks = [], mr;
-      try { mr = new MediaRecorder(stream); } catch (e) { stream.getTracks().forEach(function (t) { t.stop(); }); browserVoice(input, after); return; }
+      try { mr = new MediaRecorder(stream); } catch (e) { stream.getTracks().forEach(function (t) { t.stop(); }); if (actx) actx.close(); browserVoice(input, after); return; }
+      var unwatch = actx ? watchSilence(actx, stream, stopRecording) : function () {};
       recState = { mr: mr, stream: stream, timer: setTimeout(stopRecording, 20000) };
       mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
       mr.onstop = function () {
+        unwatch(); if (actx) { try { actx.close(); } catch (e) {} }
         stream.getTracks().forEach(function (t) { t.stop(); });
         clearTimeout(recState && recState.timer); recState = null;
         recBar('⏳ 正在听写…', null);
@@ -423,8 +447,9 @@
         });
       };
       mr.start();
-      recBar('<span class="rec-dot"></span> 正在听…说完点这里', stopRecording);
+      recBar('<span class="rec-dot"></span> 正在听…说完停一下就好', stopRecording);
     }).catch(function () {
+      if (actx) { try { actx.close(); } catch (e) {} }
       toast("要允许用麦克风才能说话；也可以点键盘上的 🎤");
       browserVoice(input, after);
     });
