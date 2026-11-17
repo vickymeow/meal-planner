@@ -190,3 +190,19 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
 /* 动态里提到的人：只用颜色，不插头像 */
 .who-ref { font-weight: 800; }
 .act-c-mom { color: #c2451e; } .act-c-vicky { color: #2e7d5b; } .act-c-chen { color: #38618c; } .act-c-dad { color: #7a5a2e; }
+
+/* 选日子：上面一个大块写清楚是哪天，下面 7 天小块，一行 4 个，不用横着滑 */
+.day-pick { overflow: visible !important; padding: 0 !important; display: block !important; }
+.day-big { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 14px 16px; border-radius: 18px;
+  background: linear-gradient(135deg,#fff3df,#ffe3bd); border: 2px solid #e07a3a; box-shadow: 0 6px 16px rgba(210,110,40,.16); }
+.day-big .db-rel { font-size: 30px; font-weight: 900; color: #b84a1f; line-height: 1.1; }
+.day-big .db-date { font-size: 20px; font-weight: 800; color: #3d2a1c; }
+.day-big .db-st { flex-basis: 100%; font-size: 16px; font-weight: 800; color: #a08b6d; }
+.day-big .db-st.ok { color: #2e7d5b; }
+.day-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.day-grid .day-chip { min-width: 0; min-height: 64px; padding: 6px 4px; text-align: center; }
+.day-grid .day-chip .dc-top { font-size: 17px; }
+.day-grid .day-chip .dc-top::after { content: none; }
+.day-grid .day-chip .dc-date { font-size: 12.5px; }
+.day-grid .day-chip .dc-st { font-size: 12.5px; }
+.day-grid .day-chip.on { border-width: 2.5px; }

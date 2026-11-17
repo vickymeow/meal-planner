@@ -519,21 +519,30 @@
   //  妈妈屏 · 定计划
   // =====================================================================
   // 「周几」一排：妈妈屏和家里人屏都用
+  // 选日子：正在看的那天一个大块（看得清），下面 7 天小块（好点），位置固定不跳
   function dayStrip(box, sel, onPick, list) {
     box.innerHTML = "";
-    (list || days()).forEach(function (id) {
+    box.classList.add("day-pick");
+    var ds = list || days();
+    var sd = dayInfo(sel), sdec = dinner(sel).length > 0;
+    var big = el("div", "day-big", '<span class="db-rel">' + esc(sd.rel || sd.weekday) + "</span>" +
+      '<span class="db-date">' + esc(sd.md + " " + sd.weekday) + "</span>" +
+      '<span class="db-st' + (sdec ? " ok" : "") + '">' + (sdec ? "晚饭已定 ✓" : "晚饭还没定") + "</span>");
+    big.setAttribute("aria-live", "polite");
+    box.appendChild(big);
+    var grid = el("div", "day-grid");
+    ds.forEach(function (id) {
       var d = dayInfo(id), decided = dinner(id).length > 0;
       var b = el("button", "day-chip" + (sel === id ? " on" : ""),
-        '<span class="dc-top">' + d.short + "</span>" +
-        '<span class="dc-date">' + (d.rel ? d.rel + " · " : "") + d.num + "日</span>" +
-        '<span class="dc-st' + (decided ? " ok" : "") + '">' + (decided ? "晚饭已定 ✓" : "晚饭未定") + "</span>");
-      b.type = "button"; b.setAttribute("role", "tab");
+        '<span class="dc-top">' + esc(d.rel || d.short) + "</span>" +
+        '<span class="dc-date">' + (d.rel ? d.short + " · " : "") + d.num + "日</span>" +
+        '<span class="dc-st' + (decided ? " ok" : "") + '">' + (decided ? "✓ 已定" : "未定") + "</span>");
+      b.type = "button"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(sel === id));
       b.setAttribute("aria-label", d.md + d.weekday + (decided ? "，晚饭已定" : "，晚饭未定"));
       b.addEventListener("click", function () { onPick(id); });
-      box.appendChild(b);
+      grid.appendChild(b);
     });
-    var on = box.querySelector(".on");
-    if (on && on.scrollIntoView && box.scrollWidth > box.clientWidth) box.scrollLeft = Math.max(0, on.offsetLeft - box.clientWidth / 2 + on.offsetWidth / 2);
+    box.appendChild(grid);
   }
   function renderDayStrip() {
     var ds = cookDays(); // 晚上 7 点后，今天就过去了，从明天开始
