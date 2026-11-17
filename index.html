@@ -26,7 +26,7 @@
         <div class="screen-scroll">
           <div class="switch" id="mode-switch" role="tablist" aria-label="定计划还是照着做">
             <button id="tab-plan" class="on" type="button" role="tab">📋 定计划<small>晚上定这一周</small></button>
-            <button id="tab-cook" type="button" role="tab">🍳 照着做<small>早上做饭看</small></button>
+            <button id="tab-cook" type="button" role="tab">🍳 照着做<small>做饭时看，看一周</small></button>
           </div>
 
           <div id="plan-area">
@@ -57,10 +57,11 @@
 
           <div id="cook-area" hidden>
             <div class="day-head">
-              <div class="day-when">今天</div>
+              <div class="day-when" id="cook-when">今天</div>
               <div class="day-date" id="cook-date"></div>
               <div class="day-meta" id="cook-meta"></div>
             </div>
+            <div class="day-strip" id="cook-strip" role="tablist" aria-label="看哪天" style="margin-top:12px"></div>
             <button class="read-btn" id="read-btn" type="button" style="margin-top:16px">🔊 把今天的安排读给我听</button>
             <div class="read-panel" id="read-panel" hidden></div>
             <div class="sec" style="margin-top:18px" id="morning"></div>

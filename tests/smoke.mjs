@@ -43,14 +43,21 @@ async function fakeSupabase(route) {
   return route.fulfill({ contentType: "application/json", body: JSON.stringify({ now: tick(), items }) });
 }
 
+// 让模拟手机的「当地时间」固定在白天（10–15 点）或晚上（20–22 点），结果不受跑测试的时刻影响
+function tzWithLocalHour(lo, hi) {
+  const h = new Date().getUTCHours();
+  for (let k = -11; k <= 14; k++) { const lh = (h + k + 24) % 24; if (lh >= lo && lh <= hi) return k >= 0 ? `Etc/GMT-${k}` : `Etc/GMT+${-k}`; }
+  return "UTC";
+}
+const DAY_TZ = tzWithLocalHour(10, 15), NIGHT_TZ = tzWithLocalHour(20, 22);
 const results = [];
 let lastAudio = null;
 const aiCalls = { photo: [], tts: 0 };
 function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); console.log((ok ? "✓ " : "✗ ") + name + (detail ? " — " + detail : "")); }
 
 const browser = await chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] }); // 假麦克风：录音测试用
-async function phone(me) {
-  const ctx = await browser.newContext({ ...devices["iPhone 13"], locale: "zh-CN", permissions: ["microphone"] });
+async function phone(me, tz) {
+  const ctx = await browser.newContext({ ...devices["iPhone 13"], locale: "zh-CN", permissions: ["microphone"], timezoneId: tz || DAY_TZ });
   await ctx.route("**/rest/v1/rpc/**", fakeSupabase);
   await ctx.route("**/image.pollinations.ai/**", (r) => r.abort()); // 测「配不出图」时的暖色方块
   // 假的 AI：句子里带「AI测试」时假装 Qwen 听懂了；其他时候假装还没开通（走本地规则）
@@ -73,7 +80,7 @@ async function phone(me) {
     return r.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "no_key" }) });
   });
   await ctx.route("**/api.open-meteo.com/**", (r) => { // 假天气，不连外网
-    const time = []; for (let i = 0; i < 8; i++) { const d = new Date(); d.setDate(d.getDate() + i); time.push(d.toISOString().slice(0, 10)); }
+    const time = []; for (let i = -1; i < 9; i++) { const d = new Date(); d.setDate(d.getDate() + i); time.push(d.toISOString().slice(0, 10)); }
     r.fulfill({ contentType: "application/json", body: JSON.stringify({ daily: { time, weather_code: time.map(() => 1), temperature_2m_max: time.map(() => 18), temperature_2m_min: time.map(() => 9) } }) });
   });
   const page = await ctx.newPage();
@@ -172,31 +179,32 @@ await C.screenshot({ path: `${SHOTS}/02-family.png` });
 
 // 同步：小陈的改动出现在妈妈手机上
 await syncBoth(C, M);
-await M.locator(".day-chip").nth(1).click(); // 明天
+await M.locator("#day-strip .day-chip").nth(1).click(); // 明天
 const people = await M.locator("#people").innerText();
 check("同步：妈妈看到小陈明天不在家", /小陈不在家/.test(people), people.replace(/\n/g, " "));
 check("同步：妈妈看到小陈超想吃红烧肉", /红烧肉/.test(await M.locator("#wishes").innerText()));
 check("同步：家里动态有小陈的记录", /小陈/.test(await M.locator("#view-today .history-box").innerText()));
 
 // 2. 定计划能定整周（今天 + 其他天）
-await M.locator(".day-chip").nth(0).click();
+await M.locator("#day-strip .day-chip").nth(0).click();
 await M.locator("#dinner-plan .plan-empty").click();
 await M.locator(".sheet .pick-card", { hasText: "红烧肉" }).first().click();
 await M.waitForTimeout(120);
-await M.locator(".day-chip").nth(3).click();
+await M.locator("#day-strip .day-chip").nth(3).click();
 await M.locator("#dinner-plan .plan-empty").click();
 await M.locator(".sheet .pick-card", { hasText: "清蒸鲈鱼" }).first().click();
 await M.waitForTimeout(120);
 await M.locator("#dinner-plan .add-dish").click();
 await M.locator(".sheet .pick-card", { hasText: "青菜汤" }).first().click();
 await M.waitForTimeout(120);
-const decided = await M.locator(".day-chip .dc-st.ok").count();
+const decided = await M.locator("#day-strip .day-chip .dc-st.ok").count();
 check("一周里定了好几天的晚饭", decided === 2, decided + " 天");
 check("一顿能定好几道（妈妈自己决定）", (await M.locator("#dinner-plan .dish-row").count()) === 2);
 // 照着做：只看今天，大图大名，做好了 → 从最近想吃拿掉
 await M.click("#tab-cook");
 await M.click("#read-btn"); await M.waitForTimeout(500);
 check("读给我听：先请 Qwen 真人声音", aiCalls.tts >= 1 && /今天在家吃饭/.test(await M.locator("#read-panel").innerText()));
+check("照着做能看一整周（7 天），默认今天", (await M.locator("#cook-strip .day-chip").count()) === 7 && /今天/.test(await M.locator("#cook-strip .day-chip.on").innerText()));
 check("照着做里有今天的红烧肉", /红烧肉/.test(await M.locator("#morning").innerText()));
 check("照着做里有今天的早饭（小陈的馄饨）", /馄饨/.test(await M.locator("#morning").innerText()));
 check("没点早饭的人默认鸡蛋三明治", /鸡蛋三明治/.test(await M.locator("#morning").innerText()));
@@ -211,9 +219,9 @@ check("同步：小陈那边的想吃也没了", !/红烧肉/.test(await C.locat
 
 // 客人：妈妈屏只有那天才显示
 let guestDayIdx = await M.evaluate(() => { const ds = []; for (let i = 0; i < 7; i++) { const d = new Date(); d.setDate(d.getDate() + i); ds.push(d.getDay()); } return ds.indexOf(6); });
-await M.locator(".day-chip").nth(guestDayIdx === 0 ? 1 : 0).click();
+await M.locator("#day-strip .day-chip").nth(guestDayIdx === 0 ? 1 : 0).click();
 check("没客人那天妈妈屏不显示客人", !(await M.locator("#guests-mom").isVisible()));
-await M.locator(".day-chip").nth(guestDayIdx).click();
+await M.locator("#day-strip .day-chip").nth(guestDayIdx).click();
 check("客人那天妈妈屏显示客人", /姑姑一家/.test(await M.locator("#guests-mom").innerText()));
 
 // 5. 菜谱：按「鱼」找；每道菜点得进做法
@@ -299,7 +307,7 @@ check("说话后先弹确认页", /对吗/.test(await M.locator(".sheet h3").inn
 check("「做鱼」直接对上妈妈菜谱里的「鱼」", /鱼/.test(await M.locator(".sheet .vp-item").first().innerText()));
 await M.screenshot({ path: `${SHOTS}/07-voice-confirm.png` });
 await M.locator(".sheet .sheet-cta").click();
-await M.locator(".day-chip").nth(2).click();
+await M.locator("#day-strip .day-chip").nth(2).click();
 const d2 = await M.locator("#dinner-plan").innerText();
 check("确认后排进那天的晚饭", /鱼/.test(d2) && /蒸水蛋/.test(d2), d2.replace(/\n/g, " "));
 
@@ -358,7 +366,7 @@ check("反馈带名字，两处共用一份", /妈妈：字再大一点/.test(aw
 
 // 刷新后数据还在（不是 demo，不会恢复原样）
 await M.reload(); await M.waitForTimeout(500);
-await M.locator(".day-chip").nth(0).click();
+await M.locator("#day-strip .day-chip").nth(0).click();
 check("刷新后计划还在", /红烧肉/.test(await M.locator("#dinner-plan").innerText()));
 
 // 图标
@@ -404,6 +412,18 @@ await C.screenshot({ path: `${SHOTS}/09-menu-family.png` });
 
 check("没照片的菜自动请 AI 画，有自带照片的不画", aiCalls.photo.length > 0 && !aiCalls.photo.includes("红烧肉") && aiCalls.photo.includes("小酥肉"), aiCalls.photo.slice(0, 6).join("、"));
 check("同一道菜不重复请 AI 画", new Set(aiCalls.photo).size === aiCalls.photo.length, aiCalls.photo.length + " 次");
+// 晚上 7 点以后：照着做、本周菜单都从明天开始
+const night = await phone("mom", NIGHT_TZ);
+await night.page.click("#tab-cook");
+await night.page.waitForTimeout(200);
+const firstChip = await night.page.locator("#cook-strip .day-chip").first().innerText();
+check("晚上 7 点后，照着做从明天开始（今天挪走）", /明天/.test(firstChip) && /明天/.test(await night.page.locator("#cook-strip .day-chip.on").innerText()) && /明天/.test(await night.page.locator("#cook-when").innerText()), NIGHT_TZ + " " + firstChip.replace(/\n/g, " "));
+await night.ctx.close();
+const nightFam = await phone("chen", NIGHT_TZ);
+await nightFam.page.click("#dtab-menu"); await nightFam.page.waitForTimeout(150);
+check("晚上 7 点后，本周菜单也从明天开始", /明天/.test(await nightFam.page.locator("#fam-day-strip .day-chip.on").innerText()));
+await nightFam.ctx.close();
+
 check("妈妈手机没有脚本报错", mom.errors.length === 0, mom.errors.join(" | "));
 check("小陈手机没有脚本报错", chen.errors.length === 0, chen.errors.join(" | "));
 

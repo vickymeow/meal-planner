@@ -41,6 +41,10 @@
     };
   }
   function days() { var out = [], t = new Date(); for (var i = 0; i < 7; i++) out.push(iso(addDays(t, i))); return out; }
+  // 做饭看的日子：晚上 7 点以后，今天的饭做完了，从明天开始排
+  var CUTOFF_HOUR = 19;
+  function cookBaseIso() { var n = new Date(); return iso(n.getHours() >= CUTOFF_HOUR ? addDays(n, 1) : n); }
+  function cookDays() { var b = fromIso(cookBaseIso()), out = []; for (var i = 0; i < 7; i++) out.push(iso(addDays(b, i))); return out; }
   function eveLabel(id) { var d = dayInfo(id); return d.rel === "今天" ? "今晚" : d.rel === "明天" ? "明晚" : d.rel === "后天" ? "后天晚上" : d.short + "晚上"; }
   function dayName(id) { var d = dayInfo(id); return d.rel || d.short; }
 
@@ -68,7 +72,8 @@
     customOpen: false,
     momBfOpen: false,
     homeOpen: false,
-    famDay: todayIso(),
+    famDay: null,
+    cookDay: null,
     famBfOpen: false,
     othersBfOpen: false,
     buyOpen: true,
@@ -454,9 +459,9 @@
   //  妈妈屏 · 定计划
   // =====================================================================
   // 「周几」一排：妈妈屏和家里人屏都用
-  function dayStrip(box, sel, onPick) {
+  function dayStrip(box, sel, onPick, list) {
     box.innerHTML = "";
-    days().forEach(function (id) {
+    (list || days()).forEach(function (id) {
       var d = dayInfo(id), decided = dinner(id).length > 0;
       var b = el("button", "day-chip" + (sel === id ? " on" : ""),
         '<span class="dc-top">' + d.short + "</span>" +
@@ -638,13 +643,17 @@
     toast("谢谢妈妈！" + name + "做好了" + (ws.length ? "，已从「最近想吃」拿掉" : ""));
   }
   function renderCook() {
-    var id = todayIso(), d = dayInfo(id);
+    if (!ui.cookDay || cookDays().indexOf(ui.cookDay) === -1) ui.cookDay = cookBaseIso();
+    var id = ui.cookDay, d = dayInfo(id);
+    dayStrip($("cook-strip"), id, function (x) { ui.cookDay = x; renderCook(); $("read-panel").hidden = true; }, cookDays());
+    $("cook-when").textContent = d.rel || d.short;
     $("cook-date").textContent = d.md + " " + d.weekday;
     $("cook-meta").innerHTML = dayMetaHTML(id);
+    if (!reading) $("read-btn").textContent = "🔊 把" + dayName(id) + "的安排读给我听";
     var box = $("morning"); box.innerHTML = "";
     var bfCard = el("div", "m-card", '<div class="plan-meal">早饭 · 热一下就行</div>');
     var bfs = bfList(id).filter(function (it) { return it.kind !== "skip"; });
-    if (!bfs.length) bfCard.appendChild(el("div", "m-empty", "今天不用做早饭。"));
+    if (!bfs.length) bfCard.appendChild(el("div", "m-empty", dayName(id) + "不用做早饭。"));
     // 一样的早饭合并成一张：写上谁要吃，几份
     var groups = [], byName = {};
     bfs.forEach(function (it) {
@@ -680,17 +689,17 @@
     });
     box.appendChild(dnCard);
     var away = D.PEOPLE.filter(function (p) { return !isHome(id, p.id); }).map(function (p) { return p.name; });
-    $("today-line").innerHTML = "今天在家：" + esc(homePeople(id).map(function (p) { return p.name; }).join("、") || "没人") +
+    $("today-line").innerHTML = esc(dayName(id)) + "在家：" + esc(homePeople(id).map(function (p) { return p.name; }).join("、") || "没人") +
       (away.length ? "<br>" + esc(away.join("、")) + "不在家" : "") +
       (guestCount(id) ? "<br>🎉 有客人：" + esc(guestText(id)) : "");
   }
   function todayScript() {
-    var id = todayIso();
+    var id = ui.cookDay || cookBaseIso(), dn0 = dayName(id);
     var g = {}, order = [];
     bfList(id).filter(function (it) { return it.kind !== "skip"; }).forEach(function (it) { var n = it.kind === "any" ? "随便" : it.name; if (!g[n]) { g[n] = []; order.push(n); } g[n].push(pname(it.person)); });
     var bf = order.map(function (n) { return n + (g[n].length > 1 ? g[n].length + "份" : "") + "，" + g[n].join("、") + "吃"; }).join("；");
     var dn = dinner(id);
-    return "今天在家吃饭的有" + homePeople(id).map(function (p) { return p.name; }).join("、") + "，一共 " + totalPeople(id) + " 个人" +
+    return dn0 + "在家吃饭的有" + homePeople(id).map(function (p) { return p.name; }).join("、") + "，一共 " + totalPeople(id) + " 个人" +
       (guestCount(id) ? "，其中客人 " + guestCount(id) + " 位" : "") + "。\n早饭，加热就行：" + (bf || "不用做") + "。\n晚饭：" + (dn.length ? dn.join("、") : "还没定") + "。";
   }
   var reading = false;
@@ -757,7 +766,6 @@
   function renderFamily() {
     if (isMom()) return;
     var me = ui.me, t = dayInfo(todayIso());
-    if (days().indexOf(ui.famDay) === -1) ui.famDay = todayIso();
     $("fam-when").textContent = ui.famTab === "order" ? "我的安排" : "本周菜单";
     $("fam-date").textContent = "今天 " + t.md + " " + t.weekday;
     $("fam-meta").innerHTML = dayMetaHTML(todayIso());
@@ -938,9 +946,9 @@
 
   // 本周菜单 = 妈妈做什么：默认今天，可以点别的日子；晚饭一起吃全显示，早饭只显示自己的（别人的折起来）
   function renderFamilyToday() {
-    if (days().indexOf(ui.famDay) === -1) ui.famDay = todayIso();
+    if (!ui.famDay || cookDays().indexOf(ui.famDay) === -1) ui.famDay = cookBaseIso();
     var id = ui.famDay, di = dayInfo(id);
-    dayStrip($("fam-day-strip"), id, function (x) { ui.famDay = x; renderFamilyToday(); });
+    dayStrip($("fam-day-strip"), id, function (x) { ui.famDay = x; renderFamilyToday(); }, cookDays());
     var box = $("fam-today-menu"); box.innerHTML = "";
     var card = el("div", "tonight-card", '<div class="plan-meal">' + esc(di.md + " " + di.weekday + (di.rel ? "（" + di.rel + "）" : "")) + " · 晚饭 · " + totalPeople(id) + " 个人吃" + (guestCount(id) ? "（含客人 " + guestCount(id) + " 位）" : "") + "</div>");
     var dn = dinner(id);
@@ -1915,6 +1923,12 @@
     ready.then(function () { maybeSeed(); if (S.status() === "ok" && isMom()) pruneLogs(); queueRender(); setTimeout(queueAiPhotos, 3000); });
     S.onChange(function () { setTimeout(queueAiPhotos, 2000); });
     loadWeather();
+    // 到了晚上 7 点，「照着做」「本周菜单」从明天开始
+    var lastBase = cookBaseIso();
+    setInterval(function () {
+      var b = cookBaseIso();
+      if (b !== lastBase) { lastBase = b; ui.cookDay = b; ui.famDay = b; queueRender(); }
+    }, 60000);
     // 过了半夜，日子要往后挪
     var lastDay = todayIso();
     document.addEventListener("visibilitychange", function () {
