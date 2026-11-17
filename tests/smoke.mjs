@@ -44,11 +44,12 @@ async function fakeSupabase(route) {
 }
 
 const results = [];
+let lastAudio = null;
 function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); console.log((ok ? "✓ " : "✗ ") + name + (detail ? " — " + detail : "")); }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] }); // 假麦克风：录音测试用
 async function phone(me) {
-  const ctx = await browser.newContext({ ...devices["iPhone 13"], locale: "zh-CN" });
+  const ctx = await browser.newContext({ ...devices["iPhone 13"], locale: "zh-CN", permissions: ["microphone"] });
   await ctx.route("**/rest/v1/rpc/**", fakeSupabase);
   await ctx.route("**/image.pollinations.ai/**", (r) => r.abort()); // 测「配不出图」时的暖色方块
   // 假的 AI：句子里带「AI测试」时假装 Qwen 听懂了；其他时候假装还没开通（走本地规则）
@@ -59,6 +60,11 @@ async function phone(me) {
       return r.fulfill({ contentType: "application/json", body: JSON.stringify({ reply: "周几不在家，想吃卤牛肉", actions: [
         { type: "home", date: day, dish: "", on: false, level: 2, qty: "" },
         { type: "wish", date: "", dish: "卤牛肉", on: true, level: 3, qty: "" } ] }) });
+    }
+    if (b.task === "transcribe") {
+      const wav = Buffer.from(b.audio || "", "base64");
+      lastAudio = { riff: wav.slice(0, 4).toString(), wave: wav.slice(8, 12).toString(), rate: wav.length > 28 ? wav.readUInt32LE(24) : 0, bytes: wav.length, mime: b.mime };
+      return r.fulfill({ contentType: "application/json", body: JSON.stringify({ text: "我周五不在家吃饭。" }) });
     }
     if (b.task === "recipe" && b.name === "酸汤肥牛") return r.fulfill({ contentType: "application/json", body: JSON.stringify({ cat: "meat", ings: ["肥牛卷 400克", "金针菇 1 把", "黄灯笼辣椒酱"], steps: ["金针菇焯水铺碗底。", "酸汤烧开下肥牛。", "浇在金针菇上。"], prep: "" }) });
     return r.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "no_key" }) });
@@ -309,6 +315,17 @@ await C.fill(".sheet .assist-input", "AI测试 那天不回来吃，想吃卤牛
 await C.locator(".sheet .sheet-cta").click();
 await C.waitForSelector(".sheet .vp-item");
 check("AI 听懂的结果也先给人确认", (await C.locator(".sheet .vp-item").count()) === 2 && /卤牛肉/.test(await C.locator(".sheet").innerText()));
+await C.locator(".sheet .sheet-close").last().click();
+// 语音助手：点「说话」→ 手机录音 → 转成 16k WAV 交给 Qwen 听写 → 自动接着听懂
+await C.click("#voice-fab", { force: true });
+await C.locator(".sheet .vp-mic").click();
+await C.waitForSelector("#rec-bar:not([hidden])");
+check("点说话后出现「正在听…说完点这里」红条", /正在听/.test(await C.locator("#rec-bar").innerText()));
+await C.waitForTimeout(1500);
+await C.locator("#rec-bar").click();
+await C.waitForSelector(".sheet .vp-item", { timeout: 15000 });
+check("录音转成 16k 单声道 WAV 发给 Qwen", lastAudio && lastAudio.riff === "RIFF" && lastAudio.wave === "WAVE" && lastAudio.rate === 16000 && lastAudio.bytes > 20000, JSON.stringify(lastAudio));
+check("听写回来的字自动接着听懂：周五不在家", /周五不在家吃饭/.test(await C.locator(".sheet .vp-item").first().innerText()), await C.locator(".sheet").innerText().then((t) => t.slice(0, 80).replace(/\n/g, " ")));
 await C.locator(".sheet .sheet-close").last().click();
 // 加新菜：AI 写配料和做法
 await C.click("#nav-menu");

@@ -149,3 +149,8 @@ textarea.add-input { min-height: 110px; resize: vertical; line-height: 1.6; }
 .screen .tab-switch button small { font-size: 12.5px; }
 .tab-switch button.on { background: linear-gradient(135deg,#3a8a68,#2e7d5b) !important; border-color: #2e7d5b !important; color: #fff !important; box-shadow: 0 10px 22px rgba(46,125,91,.26), inset 0 1px 0 rgba(255,255,255,.25) !important; }
 .tab-switch button.on small { color: rgba(255,255,255,.85); }
+
+/* 正在录音的红条：在最上层，说完点一下 */
+.rec-bar { position: absolute; left: 12px; right: 12px; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 60; min-height: 72px; border-radius: 20px; border: none; background: linear-gradient(135deg,#e8553a,#c2451e); color: #fff; font-family: inherit; font-size: 21px; font-weight: 900; box-shadow: 0 12px 30px rgba(194,69,30,.4); display: flex; align-items: center; justify-content: center; gap: 12px; cursor: pointer; }
+.rec-dot { width: 16px; height: 16px; border-radius: 50%; background: #fff; animation: recPulse 1s ease-in-out infinite; }
+@keyframes recPulse { 50% { opacity: .3; } }

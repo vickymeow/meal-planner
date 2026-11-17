@@ -1,11 +1,14 @@
 // 早饭晚饭的 AI 助手（Supabase Edge Function）
 // - task "recipe"：给一道家常菜写配料（带份量）和做法
 // - task "intent"：把一句话（语音转的字）变成 App 里要做的事
-// 用阿里云百炼 Qwen 的 Token Plan（OpenAI 兼容接口）。
-// 在 Supabase 后台 Edge Functions → Secrets 里设：
-//   QWEN_API_KEY   必填：Token Plan 的 API Key
-//   QWEN_BASE_URL  可选：默认新加坡 Token Plan；国内的 key 用 https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
-//   QWEN_MODEL     可选：默认 qwen3.7-plus，以 Token Plan 控制台里显示的模型名为准
+// - task "transcribe"：录音转文字（主屏 App 里浏览器自带的语音识别常常用不了）
+// - task "diag"：检查 key 和模型能不能用（不返回 key 本身）
+// 用阿里云百炼 Qwen（OpenAI 兼容接口）；连接方式照旧版早饭 App（云函数 breakfast）实测能用的写法：
+//   - key：QWEN_API_KEY 和旧版的 DASHSCOPE_API_KEY 都会试，Token Plan 的（sk-sp- 开头）优先
+//   - Token Plan 的 key 以 sk-sp- 开头，走 token-plan 专属地址；普通 key 走 dashscope-intl
+//   - 对话必须带 enable_thinking: false（Qwen3 默认会先思考，JSON 模式下容易出错）
+//   - 语音用 qwen-audio-3.0-asr-flash，走百炼原生接口，parameters.format 必填
+// 可选设置：QWEN_BASE_URL / DASHSCOPE_BASE_URL（地址）、QWEN_MODEL / QWEN_CHAT_MODEL（对话模型）、QWEN_ASR_MODEL（语音模型）
 // 只接受带正确家庭密钥（h）的请求。
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -17,30 +20,106 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-const BASE_URL = (Deno.env.get("QWEN_BASE_URL") || "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1").replace(/\/+$/, "");
-const MODEL = Deno.env.get("QWEN_MODEL") || "qwen3.7-plus";
+const env = (k: string) => (Deno.env.get(k) || "").trim().replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, "");
+const SG_TP = "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
+const BJ_TP = "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
+const INTL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+const SET_BASE = (env("QWEN_BASE_URL") || env("DASHSCOPE_BASE_URL")).replace(/\/+$/, "");
+// 可用的 key：Token Plan 的（sk-sp- 开头，包月）优先，按量付费的在后（去重、去空）
+const KEYS = [{ src: "QWEN_API_KEY", key: env("QWEN_API_KEY") }, { src: "DASHSCOPE_API_KEY", key: env("DASHSCOPE_API_KEY") }]
+  .filter((k, i, a) => k.key && a.findIndex((x) => x.key === k.key) === i)
+  .sort((a, b) => Number(b.key.startsWith("sk-sp-")) - Number(a.key.startsWith("sk-sp-")));
+function basesFor(key: string) {
+  if (SET_BASE) return [SET_BASE];
+  return key.startsWith("sk-sp-") ? [SG_TP, BJ_TP] : [INTL, SG_TP];
+}
+const CHAT_MODEL = env("QWEN_MODEL") || env("QWEN_CHAT_MODEL");
+const CHAT_CANDIDATES = [CHAT_MODEL, "qwen3.8-flash", "qwen3.6-flash", "qwen3.7-plus", "qwen3.6-plus", "qwen-flash", "qwen-turbo", "qwen-plus"]
+  .filter((x, i, a) => x && a.indexOf(x) === i);
+const ASR_CANDIDATES = [env("QWEN_ASR_MODEL"), "qwen-audio-3.0-asr-flash", "qwen3-asr-flash"].filter((x, i, a) => x && a.indexOf(x) === i);
+// 记住能用的组合，下次直接用
+let good: { key: string; src: string; base: string; model: string } | null = null;
+let goodAsr: { key: string; base: string; model: string } | null = null;
 
-// 让模型只回 JSON：在提示里给出格式，再用 response_format json_object 兜住
-async function askJSON(system: string, user: string, schema: unknown) {
-  const res = await fetch(BASE_URL + "/chat/completions", {
+class HttpErr extends Error { constructor(public status: number, msg: string) { super(msg); } }
+
+async function chatOnce(key: string, base: string, model: string, messages: unknown[], jsonMode: boolean) {
+  const body: Record<string, unknown> = { model, stream: false, enable_thinking: false, temperature: 0.2, messages };
+  if (jsonMode) body.response_format = { type: "json_object" };
+  const r = await fetch(base + "/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + Deno.env.get("QWEN_API_KEY") },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system + "\n\n只输出一个 JSON 对象，不要输出其他文字。JSON 必须符合这个 JSON Schema：\n" + JSON.stringify(schema) },
-        { role: "user", content: user },
-      ],
-    }),
+    headers: { authorization: "Bearer " + key, "content-type": "application/json" },
+    body: JSON.stringify(body),
   });
-  const txt = await res.text();
-  if (!res.ok) throw Object.assign(new Error(txt.slice(0, 300)), { status: res.status });
-  const content = JSON.parse(txt)?.choices?.[0]?.message?.content || "";
+  const txt = await r.text();
+  if (!r.ok) throw new HttpErr(r.status, `${model}@${new URL(base).host}: ${r.status} ${txt.slice(0, 200)}`);
+  return String(JSON.parse(txt)?.choices?.[0]?.message?.content || "");
+}
+// 依次试：key → 地址 → 模型；401 换地址/换 key，404（套餐里没有这个模型）换模型
+async function chat(messages: unknown[], jsonMode: boolean): Promise<string> {
+  if (good) {
+    try { return await chatOnce(good.key, good.base, good.model, messages, jsonMode); }
+    catch (e) { if (!(e instanceof HttpErr) || ![401, 403, 404].includes(e.status)) throw e; good = null; }
+  }
+  let last: unknown = null;
+  for (const k of KEYS) {
+    for (const base of basesFor(k.key)) {
+      let authFailed = false;
+      for (const model of CHAT_CANDIDATES) {
+        try {
+          const out = await chatOnce(k.key, base, model, messages, jsonMode);
+          good = { key: k.key, src: k.src, base, model };
+          return out;
+        } catch (e) {
+          last = e;
+          console.error("qwen chat failed", (e as Error).message);
+          const st = (e as HttpErr).status;
+          if (st === 401 || st === 403) { authFailed = true; break; } // 这个地址不认这把 key
+          if (st === 400 && jsonMode && /response_format|json/i.test((e as Error).message)) {
+            return chat(messages, false); // 不支持 JSON 模式：不带格式要求再来
+          }
+          if (st !== 404 && st !== 400) throw e;
+        }
+      }
+      if (!authFailed) break; // 地址认 key 但模型都不行，不用再换地址
+    }
+  }
+  throw last || new Error("no key");
+}
+async function askJSON(system: string, user: string, schema: unknown) {
+  const content = await chat([
+    { role: "system", content: system + "\n\n只输出一个 JSON 对象，不要输出其他文字。JSON 必须符合这个 JSON Schema：\n" + JSON.stringify(schema) },
+    { role: "user", content: user },
+  ], true);
   const m = String(content).match(/\{[\s\S]*\}/);
-  if (!m) throw Object.assign(new Error("no json in reply"), { status: 502 });
+  if (!m) throw new HttpErr(502, "no json in reply");
   return JSON.parse(m[0]);
+}
+
+// ---- 录音转文字（百炼原生接口）----
+async function asrOnce(key: string, base: string, model: string, b64: string, mime: string, fmt: string) {
+  const url = new URL(base).origin + "/api/v1/services/aigc/multimodal-generation/generation";
+  const body = { model, input: { messages: [{ role: "user", content: [{ audio: `data:${mime};base64,${b64}` }] }] }, parameters: { format: fmt, sample_rate: 16000, language_hints: ["zh"] } };
+  const r = await fetch(url, { method: "POST", headers: { authorization: "Bearer " + key, "content-type": "application/json" }, body: JSON.stringify(body) });
+  const raw = await r.text();
+  let text = "";
+  try { const j = JSON.parse(raw); text = String(j.text || j.sentence?.text || j.output?.text || j.output?.sentence?.text || j.output?.choices?.[0]?.message?.content?.[0]?.text || "").trim(); } catch { /* 不是 JSON */ }
+  return { ok: r.ok, status: r.status, text, raw };
+}
+async function transcribe(b64: string, mime: string): Promise<{ text: string } | { error: string; status: number }> {
+  const fmt = /wav/.test(mime) ? "wav" : /webm/.test(mime) ? "webm" : /ogg/.test(mime) ? "ogg" : /mpeg|mp3/.test(mime) ? "mp3" : /aac/.test(mime) ? "aac" : "mp4";
+  const tries: { key: string; base: string; model: string }[] = [];
+  if (goodAsr) tries.push(goodAsr);
+  for (const k of KEYS) for (const base of basesFor(k.key)) for (const model of ASR_CANDIDATES) tries.push({ key: k.key, base, model });
+  let lastErr = "";
+  for (const t of tries) {
+    const r = await asrOnce(t.key, t.base, t.model, b64, mime, fmt);
+    if (r.ok) { goodAsr = t; return r.text ? { text: r.text } : { error: "no_speech", status: 422 }; }
+    lastErr = `${t.model}@${new URL(t.base).host}: ${r.status} ${r.raw.slice(0, 200)}`;
+    console.error("qwen asr failed", lastErr);
+    if (r.status === 400 && !/url error|model/i.test(r.raw)) return { error: "no_speech", status: 422 }; // 接口通了，但没听到人声
+  }
+  return { error: "asr_failed", status: 502 };
 }
 
 const RECIPE_SCHEMA = {
@@ -108,7 +187,25 @@ Deno.serve(async (req) => {
   const { data: home } = await sb.from("mp_households").select("id").eq("id", h).maybeSingle();
   if (!home) return json({ error: "unknown household" }, 403);
 
-  if (!Deno.env.get("QWEN_API_KEY")) return json({ error: "no_key" }, 503);
+  if (!KEYS.length) return json({ error: "no_key" }, 503);
+
+  // 诊断：试一句话，报告哪把 key、哪个地址、哪个模型能用（不返回 key 本身）
+  if (body.task === "diag") {
+    const keys = KEYS.map((k) => ({ src: k.src, length: k.key.length, tokenPlan: k.key.startsWith("sk-sp-"), startsWithSk: k.key.startsWith("sk-") }));
+    try {
+      const reply = await chat([{ role: "user", content: "回复一个字：好" }], false);
+      return json({ ok: true, keys, using: good && { src: good.src, base: good.base, model: good.model }, reply: reply.slice(0, 20) });
+    } catch (e) {
+      return json({ ok: false, keys, error: (e as Error).message.slice(0, 300) });
+    }
+  }
+  if (body.task === "transcribe") {
+    const b64 = String(body.audio || "").replace(/^data:[^,]*,/, "");
+    if (b64.length < 600) return json({ error: "no_speech" }, 422);
+    if (b64.length > 8_000_000) return json({ error: "too_long" }, 413);
+    const r = await transcribe(b64, String(body.mime || "audio/mp4"));
+    return "text" in r ? json(r) : json({ error: r.error }, r.status);
+  }
 
   let system: string, user: string, schema: Record<string, unknown>;
   if (body.task === "recipe") {

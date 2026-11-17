@@ -58,21 +58,22 @@ tests/smoke.mjs       两部模拟 iPhone 的验收测试
 2. 在每个人的 iPhone 上用 **Safari** 打开自己的链接 → 分享 → **添加到主屏幕**。图标名字是「早饭晚饭」。
 3. 妈妈的手机：用「妈妈的链接」打开再加到主屏幕，打开就是妈妈那屏。
 
-## AI（语音助手、写配料做法）
+## AI（语音助手、听写、写配料做法）
 
-用阿里云百炼 **Qwen 的 Token Plan**，通过 Supabase 边缘函数 `mp-ai`（代码在 `supabase/functions/mp-ai/`）调用，key 不会出现在网页里。
+用阿里云百炼 Qwen，通过 Supabase 边缘函数 `mp-ai`（代码在 `supabase/functions/mp-ai/`）调用，key 不会出现在网页里。连接方式照旧版早饭 App 实测能用的写法（对话带 `enable_thinking: false`，语音走百炼原生接口）。
 
-开通：Supabase 后台 → 项目 `breakfast-decider` → **Edge Functions → Secrets**，加：
+Supabase 后台 → 项目 `breakfast-decider` → **Edge Functions → Secrets** 里现在有两把 key，函数都会用：
 
-| 名字 | 填什么 |
-|---|---|
-| `QWEN_API_KEY` | Token Plan 的 API Key（必填） |
-| `QWEN_BASE_URL` | 可不填。默认新加坡：`https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`；国内的 key 填 `https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`。以 Token Plan 控制台显示的为准 |
-| `QWEN_MODEL` | 可不填，默认 `qwen3.7-plus`。以 Token Plan 控制台里能用的模型名为准 |
+| 名字 | 是什么 | 用法 |
+|---|---|---|
+| `DASHSCOPE_API_KEY` | **Token Plan**（`sk-sp-` 开头，包月），旧版就在用 | 优先用；地址 `token-plan.ap-southeast-1.maas.aliyuncs.com` |
+| `QWEN_API_KEY` | 按量付费的 key（不是 Token Plan） | Token Plan 不通时才用；地址 `dashscope-intl.aliyuncs.com` |
 
-没填 key 时 App 照常能用：语音助手用本地规则听懂常见说法，「AI 写配料做法」对推荐池里的菜照样能填。
+- 对话模型：自动从 `qwen3.8-flash` 开始试，套餐里没有的跳过（可用 `QWEN_MODEL` 指定）
+- 语音听写：`qwen-audio-3.0-asr-flash`（可用 `QWEN_ASR_MODEL` 指定）。手机录音后在网页里转成 16k WAV 再送去
+- 检查能不能用：给 `mp-ai` 发 `{"h": 家庭密钥, "task": "diag"}`，会回用的是哪把 key、哪个地址、哪个模型（不回 key 本身）
 
-语音：iPhone 主屏 App 里浏览器自带的语音识别经常没反应，这时点输入框、用键盘上的 🎤 说话最稳。
+没有 key 或连不上时 App 照常能用：语音助手用本地规则听懂常见说法；说话退回浏览器自带的识别或键盘上的 🎤。
 
 ## 可以再配的
 

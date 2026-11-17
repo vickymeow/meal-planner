@@ -264,7 +264,15 @@
 
   // ---------- 说话输入 ----------
   var MIC_SVG = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="17" y="4" width="14" height="24" rx="7" fill="#205c43"/><rect x="20.5" y="8" width="3.5" height="10" rx="1.75" fill="#bfe3cf"/><path d="M10 22a14 14 0 0 0 28 0" stroke="#205c43" stroke-width="4.5" stroke-linecap="round"/><path d="M24 36v6M16 44h16" stroke="#205c43" stroke-width="4.5" stroke-linecap="round"/></svg>';
+  // 说话输入：优先「手机录音 → Qwen 转文字」（主屏 App 里也能用）；不行再用浏览器自带的语音识别；再不行用键盘上的 🎤
+  var recState = null;
+  function canRecord() { return !!(S.household() && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder && (window.AudioContext || window.webkitAudioContext)); }
   function startVoice(input, after) {
+    if (recState) { stopRecording(); return; }
+    if (canRecord()) { recordVoice(input, after); return; }
+    browserVoice(input, after);
+  }
+  function browserVoice(input, after) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { toast("点输入框，再点键盘上的话筒说话"); input.focus(); return; }
     try {
@@ -280,6 +288,70 @@
       rec.onerror = function () { toast("没听清，点键盘上的话筒也能说"); input.focus(); };
       rec.start();
     } catch (e) { toast("点输入框，再点键盘上的话筒说话"); input.focus(); }
+  }
+  function recBar(text, onClick) {
+    var bar = $("rec-bar");
+    if (!bar) { bar = el("button", "rec-bar"); bar.id = "rec-bar"; bar.type = "button"; $("screen").appendChild(bar); bar.addEventListener("click", function () { if (bar._click) bar._click(); }); }
+    bar.innerHTML = text; bar._click = onClick; bar.hidden = !text;
+  }
+  function recordVoice(input, after) {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      var chunks = [], mr;
+      try { mr = new MediaRecorder(stream); } catch (e) { stream.getTracks().forEach(function (t) { t.stop(); }); browserVoice(input, after); return; }
+      recState = { mr: mr, stream: stream, timer: setTimeout(stopRecording, 20000) };
+      mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      mr.onstop = function () {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        clearTimeout(recState && recState.timer); recState = null;
+        recBar('⏳ 正在听写…', null);
+        var blob = new Blob(chunks, { type: mr.mimeType || "audio/mp4" });
+        toWav16k(blob).then(function (b64) {
+          return ai("transcribe", { audio: b64, mime: "audio/wav" });
+        }).then(function (r) {
+          recBar("", null);
+          var txt = String(r.text || "").replace(/[。．.！!]$/g, "");
+          input.value = txt;
+          toast("听到了：「" + txt + "」");
+          if (after) setTimeout(after, 300);
+        }).catch(function (e) {
+          recBar("", null);
+          toast(e && e.code === "no_speech" ? "没听清，靠近手机再说一次" : "说话没成功，点输入框用键盘上的 🎤 说");
+          input.focus();
+        });
+      };
+      mr.start();
+      recBar('<span class="rec-dot"></span> 正在听…说完点这里', stopRecording);
+    }).catch(function () {
+      toast("要允许用麦克风才能说话；也可以点键盘上的 🎤");
+      browserVoice(input, after);
+    });
+  }
+  function stopRecording() { if (recState && recState.mr.state !== "inactive") recState.mr.stop(); }
+  // 录音转成 16k 单声道 WAV（Qwen 语音识别最稳的格式）
+  function toWav16k(blob) {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    return blob.arrayBuffer().then(function (buf) {
+      var ctx = new AC();
+      return new Promise(function (res, rej) { ctx.decodeAudioData(buf, res, rej); }).then(function (audio) {
+        try { ctx.close(); } catch (e) {}
+        var rate = 16000, len = Math.max(1, Math.round(audio.duration * rate));
+        var off = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, len, rate);
+        var src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start(0);
+        return off.startRendering();
+      });
+    }).then(function (rendered) {
+      var pcm = rendered.getChannelData(0), n = pcm.length;
+      var out = new DataView(new ArrayBuffer(44 + n * 2));
+      function w(o, str) { for (var i = 0; i < str.length; i++) out.setUint8(o + i, str.charCodeAt(i)); }
+      w(0, "RIFF"); out.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt ");
+      out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+      out.setUint32(24, 16000, true); out.setUint32(28, 32000, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true);
+      w(36, "data"); out.setUint32(40, n * 2, true);
+      for (var i = 0; i < n; i++) { var v = Math.max(-1, Math.min(1, pcm[i])); out.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+      var bytes = new Uint8Array(out.buffer), bin = "";
+      for (var j = 0; j < bytes.length; j += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(j, j + 0x8000));
+      return btoa(bin);
+    });
   }
   function voiceButton(input, label) {
     var b = el("button", "voice-btn", MIC_SVG); b.type = "button";
@@ -1582,7 +1654,7 @@
     mic.addEventListener("click", function () { startVoice(input, function () { go(); }); });
     sheet.appendChild(mic);
     sheet.appendChild(input);
-    sheet.appendChild(el("div", "assist-hint", "说话没反应？点上面的输入框，再点键盘上的 🎤 说就行。"));
+    sheet.appendChild(el("div", "assist-hint", canRecord() ? "点「说话」，说完再点一下下面的红条。" : "说话没反应？点上面的输入框，再点键盘上的 🎤 说就行。"));
     var ex = el("div", "thanks-row");
     ASSIST_EX[isMom() ? "mom" : "family"].forEach(function (t) { ex.appendChild(btn("thanks-chip", t, function () { input.value = t; })); });
     sheet.appendChild(el("h4", null, "可以这样说："));
