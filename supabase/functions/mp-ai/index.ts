@@ -1,5 +1,6 @@
 // 早饭晚饭的 AI 助手（Supabase Edge Function）
 // - task "recipe"：给一道家常菜写详细的配料（带份量）和做法（火候、时间、怎么看熟）
+// - task "suggest"：帮我想新菜，按口味（川菜、粤菜…）一次推荐 4 道，不重复家里已有的
 // - task "intent"：把一句话（语音转的字）变成 App 里要做的事
 // - task "transcribe"：录音转文字（主屏 App 里浏览器自带的语音识别常常用不了）
 // - task "photo"：给一道菜生成一张写实菜品照（通义万相 / Qwen-Image），存进 mp-photos，写进家里的同步库
@@ -45,8 +46,8 @@ let goodAsr: { key: string; base: string; model: string } | null = null;
 
 class HttpErr extends Error { constructor(public status: number, msg: string) { super(msg); } }
 
-async function chatOnce(key: string, base: string, model: string, messages: unknown[], jsonMode: boolean) {
-  const body: Record<string, unknown> = { model, stream: false, enable_thinking: false, temperature: 0.2, messages };
+async function chatOnce(key: string, base: string, model: string, messages: unknown[], jsonMode: boolean, temperature = 0.2) {
+  const body: Record<string, unknown> = { model, stream: false, enable_thinking: false, temperature, messages };
   if (jsonMode) body.response_format = { type: "json_object" };
   const r = await fetch(base + "/chat/completions", {
     method: "POST",
@@ -58,10 +59,10 @@ async function chatOnce(key: string, base: string, model: string, messages: unkn
   return String(JSON.parse(txt)?.choices?.[0]?.message?.content || "");
 }
 // 依次试：key → 地址 → 模型；401 换地址/换 key，404（套餐里没有这个模型）换模型
-async function chat(messages: unknown[], jsonMode: boolean, prefer: string[] = []): Promise<string> {
+async function chat(messages: unknown[], jsonMode: boolean, prefer: string[] = [], temperature = 0.2): Promise<string> {
   const models = [...prefer, ...CHAT_CANDIDATES].filter((x, i, a) => a.indexOf(x) === i);
   if (good && !prefer.length) {
-    try { return await chatOnce(good.key, good.base, good.model, messages, jsonMode); }
+    try { return await chatOnce(good.key, good.base, good.model, messages, jsonMode, temperature); }
     catch (e) { if (!(e instanceof HttpErr) || ![401, 403, 404].includes(e.status)) throw e; good = null; }
   }
   let last: unknown = null;
@@ -70,7 +71,7 @@ async function chat(messages: unknown[], jsonMode: boolean, prefer: string[] = [
       let authFailed = false;
       for (const model of models) {
         try {
-          const out = await chatOnce(k.key, base, model, messages, jsonMode);
+          const out = await chatOnce(k.key, base, model, messages, jsonMode, temperature);
           if (!prefer.length) good = { key: k.key, src: k.src, base, model };
           return out;
         } catch (e) {
@@ -80,7 +81,7 @@ async function chat(messages: unknown[], jsonMode: boolean, prefer: string[] = [
           if (prefer.includes(model) && st !== 401) continue; // 想先用的模型用不了：直接换下一个
           if (st === 401 || st === 403) { authFailed = true; break; } // 这个地址不认这把 key
           if (st === 400 && jsonMode && /response_format|json/i.test((e as Error).message)) {
-            return chat(messages, false, prefer); // 不支持 JSON 模式：不带格式要求再来
+            return chat(messages, false, prefer, temperature); // 不支持 JSON 模式：不带格式要求再来
           }
           if (st !== 404 && st !== 400) throw e;
         }
@@ -90,11 +91,11 @@ async function chat(messages: unknown[], jsonMode: boolean, prefer: string[] = [
   }
   throw last || new Error("no key");
 }
-async function askJSON(system: string, user: string, schema: unknown, prefer: string[] = []) {
+async function askJSON(system: string, user: string, schema: unknown, prefer: string[] = [], temperature = 0.2) {
   const content = await chat([
     { role: "system", content: system + "\n\n只输出一个 JSON 对象，不要输出其他文字。JSON 必须符合这个 JSON Schema：\n" + JSON.stringify(schema) },
     { role: "user", content: user },
-  ], true, prefer);
+  ], true, prefer, temperature);
   const m = String(content).match(/\{[\s\S]*\}/);
   if (!m) throw new HttpErr(502, "no json in reply");
   return JSON.parse(m[0]);
@@ -217,6 +218,30 @@ const RECIPE_SCHEMA = {
     prep: { type: "string" },
   },
   required: ["cat", "ings", "steps", "prep"],
+  additionalProperties: false,
+};
+
+const SUGGEST_SCHEMA = {
+  type: "object",
+  properties: {
+    dishes: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          blurb: { type: "string" },
+          cat: { type: "string", enum: ["fish", "meat", "egg", "tofu", "veg", "staple"] },
+          ings: { type: "array", items: { type: "string" } },
+          steps: { type: "array", items: { type: "string" } },
+          prep: { type: "string" },
+        },
+        required: ["name", "blurb", "cat", "ings", "steps", "prep"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["dishes"],
   additionalProperties: false,
 };
 
@@ -354,6 +379,23 @@ Deno.serve(async (req) => {
 - steps：做法按先后顺序，炒菜炖菜 6 到 10 步，简单的早饭 4 到 6 步就够。每步一到两句话，写清楚：怎么切（切多大）、用大火中火还是小火、大概几分钟、看到什么样子就好了（比如「炒到边上微微发黄」「筷子能轻松戳透」）。关键的小窍门写进对应那一步里（比如「肉要冷水下锅」「鱼下锅前擦干，不粘锅」）。不要写序号。买来就能直接吃的（比如面包、冷冻包子），就写清楚怎么热、热多久、怎么配着吃。
 - prep：需要提前买、提前泡、提前腌或解冻的，一句话；不需要就空字符串`;
     schema = RECIPE_SCHEMA;
+  } else if (body.task === "suggest") {
+    // 帮我想新菜：按口味（川菜、粤菜…）一次想 4 道，不重复家里已有的和看过的
+    const meal = body.meal === "breakfast" ? "早饭" : "晚饭";
+    const style = String(body.style || "").slice(0, 20);
+    const avoid = (Array.isArray(body.avoid) ? body.avoid : []).map(String).slice(-150).join("、");
+    system = "你给一个住在美国的中国家庭（一家 4 口）推荐家常菜。全部用简体中文。";
+    user = `推荐 4 道${style ? "「" + style + "」" : "各种口味的"}${meal}。
+要求：家里厨房就能做，食材在华人超市（比如 Weee、99 大华）买得到；4 道的主料要不一样，不要全是猪肉。
+不要推荐这些（家里已经有，或者刚看过）：${avoid || "无"}
+每道写：
+- name：常见的菜名，不加形容词
+- blurb：一句话说这道菜好在哪
+- cat：主料分类，fish 鱼 / meat 肉（含鸡鸭虾）/ egg 蛋 / tofu 豆腐 / veg 青菜素菜 / staple 主食面点
+- ings：配料带份量，6 到 10 样，每样写成「名字 份量」，比如「排骨 500克」「生抽 2 勺」
+- steps：做法 5 到 8 步，每步一两句，写清楚火候和大概几分钟，不要写序号
+- prep：需要提前买、泡、腌或解冻的一句话，不需要就空字符串`;
+    schema = SUGGEST_SCHEMA;
   } else if (body.task === "intent") {
     const text = String(body.text || "").slice(0, 300);
     if (!text) return json({ error: "no text" }, 400);
@@ -372,12 +414,23 @@ Deno.serve(async (req) => {
 
   try {
     // 菜谱要写得好：先用 plus 模型，套餐里没有再用 flash
-    const out: any = await askJSON(system, user, schema, body.task === "recipe" ? ["qwen3.7-plus", "qwen3.6-plus", "qwen-plus"] : []);
+    // 想新菜要多一点变化（温度高一点），其他保持稳定
+    const out: any = await askJSON(system, user, schema, body.task === "recipe" ? ["qwen3.7-plus", "qwen3.6-plus", "qwen-plus"] : [], body.task === "suggest" ? 0.9 : 0.2);
     if (body.task === "recipe") {
       out.ings = (Array.isArray(out.ings) ? out.ings : []).map(String).slice(0, 14);
       out.steps = (Array.isArray(out.steps) ? out.steps : []).map((x: unknown) => String(x).replace(/^\s*(第?\d+步?[.、．:：)）]\s*)/, "")).slice(0, 12);
       out.prep = String(out.prep || "");
       if (!["fish", "meat", "egg", "tofu", "veg", "staple"].includes(out.cat)) out.cat = "veg";
+    } else if (body.task === "suggest") {
+      const cats = ["fish", "meat", "egg", "tofu", "veg", "staple"];
+      out.dishes = (Array.isArray(out.dishes) ? out.dishes : []).filter((d: any) => d && d.name).slice(0, 4).map((d: any) => ({
+        name: String(d.name).trim().slice(0, 20),
+        blurb: String(d.blurb || "").slice(0, 80),
+        cat: cats.includes(d.cat) ? d.cat : "veg",
+        ings: (Array.isArray(d.ings) ? d.ings : []).map(String).slice(0, 12),
+        steps: (Array.isArray(d.steps) ? d.steps : []).map((x: unknown) => String(x).replace(/^\s*(第?\d+步?[.、．:：)）]\s*)/, "")).slice(0, 10),
+        prep: String(d.prep || ""),
+      }));
     } else {
       out.actions = (Array.isArray(out.actions) ? out.actions : []).filter((a: any) => a && ["home", "wish", "dinner", "breakfast", "buy", "bf_switch"].includes(a.type));
       out.reply = String(out.reply || "");
