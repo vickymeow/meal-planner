@@ -145,6 +145,10 @@ const bfNames = await M.locator("#breakfast .bs-one b").allInnerTexts();
 check("按人排：Vicky、小陈在前", bfNames.join("、") === "Vicky、小陈、爸爸、妈妈", bfNames.join("、"));
 // 妈妈只能换自己的早饭
 check("妈妈屏早饭只能换自己的（一个「换我的」）", (await M.locator("#breakfast button").count()) === 1);
+check("白天打开「定计划」，默认是今天", /今天/.test(await M.locator("#day-strip .day-big .db-rel").innerText()) && !(await M.locator("#day-strip .day-big.not-today").count()));
+await M.locator("#day-strip .day-chip").nth(1).click(); await M.waitForTimeout(100); // 明天
+await M.locator("#day-strip").screenshot({ path: `${SHOTS}/15-not-today.png` });
+check("看的不是今天：大标题写明「看的不是今天」", /看的不是今天/.test(await M.locator("#day-strip .day-big").innerText()));
 await M.locator("#breakfast button").click();
 await M.locator(".sheet .pick-card", { hasText: "蒸饺" }).click();
 await M.locator(".sheet .sheet-cta").first().click();
@@ -634,6 +638,36 @@ await C.screenshot({ path: `${SHOTS}/12-suggest.png` });
 await C.locator(".sheet .rec-card", { hasText: "干炒牛河" }).locator(".want-btn").click(); await C.waitForTimeout(120);
 check("家里人挑中新菜，接着选有多想吃", /干炒牛河/.test(await C.locator(".sheet h3").innerText()) && await C.locator(".sheet .crave-btn").count() > 0);
 await C.locator(".sheet .crave-btn").first().click(); await C.waitForTimeout(120);
+
+// 晚上看了「明天」，放下手机，过了 1 小时以上再拿起来：回到默认那天，不停在「明天」
+await M.click("#nav-today"); await M.click("#tab-plan"); await M.waitForTimeout(100);
+await M.locator("#day-strip .day-chip").nth(3).click(); await M.waitForTimeout(100);
+await M.evaluate(() => {
+  const setHidden = (v) => { Object.defineProperty(document, "hidden", { configurable: true, get: () => v }); document.dispatchEvent(new Event("visibilitychange")); };
+  setHidden(true);
+  const real = Date.now; Date.now = () => real() + 2 * 3600 * 1000;
+  setHidden(false);
+  Date.now = real;
+});
+await M.waitForTimeout(300);
+check("离开 1 小时以上再回来，日子回到今天", /今天/.test(await M.locator("#day-strip .day-big .db-rel").innerText()));
+// 选菜的单子：上面有分类，按想吃/常做排
+await M.locator("#dinner-plan .plan-empty, #dinner-plan .add-dish").first().click();
+const fchips = await M.locator(".sheet .dish-grid-wrap .filter-chip").allInnerTexts();
+check("定晚饭的菜单子上面有分类", fchips.length >= 3 && /全部/.test(fchips[0]), fchips.join(" "));
+await M.locator(".sheet .dish-grid-wrap .filter-chip", { hasText: "鱼" }).click();
+const fishOnly = await M.locator(".sheet .dish-grid-wrap .pick-card .pk-name").allInnerTexts();
+check("点「鱼」只剩鱼", fishOnly.length > 0 && fishOnly.every((t) => /鱼/.test(t)), fishOnly.join(" ").replace(/\n/g, " ").slice(0, 80));
+await M.screenshot({ path: `${SHOTS}/13-mom-picker.png` });
+await M.locator(".sheet .sheet-close").last().click();
+await C.click("#nav-today"); await C.click("#dtab-order"); await C.waitForTimeout(150);
+await C.click("#fam-order-btn");
+const firstRowBox = await C.locator(".sheet .name-row").boundingBox(), gridBox = await C.locator(".sheet .dish-grid-wrap").boundingBox();
+check("家里人「晚饭想吃什么」：输入框在最上面，下面有分类", firstRowBox.y < gridBox.y && (await C.locator(".sheet .dish-grid-wrap .filter-chip").count()) >= 3);
+await C.fill(".sheet .name-row .add-input", "排骨");
+check("家里人写菜名，菜谱里的马上跳出来", (await C.locator(".sheet .found-box .pick-card").count()) >= 1);
+await C.screenshot({ path: `${SHOTS}/14-fam-picker.png` });
+await C.locator(".sheet .sheet-close").last().click();
 
 check("妈妈手机没有脚本报错", mom.errors.length === 0, mom.errors.join(" | "));
 check("小陈手机没有脚本报错", chen.errors.length === 0, chen.errors.join(" | "));

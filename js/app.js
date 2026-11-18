@@ -66,7 +66,7 @@
     me: null,
     view: "today",
     mode: LS.get("mp:mode", "plan"),
-    planDay: tomorrowIso(),
+    planDay: cookBaseIso(), // 晚上 7 点以前默认今天，7 点以后默认明天（跟「照着做」一样）
     famTab: "order",
     filter: "all",
     guestOpen: false,
@@ -571,8 +571,10 @@
     box.classList.add("day-pick");
     var ds = list || days();
     var sd = dayInfo(sel), sdec = dinner(sel).length > 0;
-    var big = el("div", "day-big", '<span class="db-rel">' + esc(sd.rel || sd.weekday) + "</span>" +
+    var notToday = sel !== todayIso();
+    var big = el("div", "day-big" + (notToday ? " not-today" : ""), '<span class="db-rel">' + esc(sd.rel || sd.weekday) + "</span>" +
       '<span class="db-date">' + esc(sd.md + " " + sd.weekday) + "</span>" +
+      (notToday ? '<span class="db-note">看的不是今天</span>' : "") +
       '<span class="db-st' + (sdec ? " ok" : "") + '">' + (sdec ? "晚饭已定 ✓" : "晚饭还没定") + "</span>");
     big.setAttribute("aria-live", "polite");
     box.appendChild(big);
@@ -592,7 +594,7 @@
   }
   function renderDayStrip() {
     var ds = cookDays(); // 晚上 7 点后，今天就过去了，从明天开始
-    if (ds.indexOf(ui.planDay) === -1) ui.planDay = tomorrowIso();
+    if (ds.indexOf(ui.planDay) === -1) ui.planDay = cookBaseIso();
     dayStrip($("day-strip"), ui.planDay, function (id) { ui.planDay = id; renderMomPlan(); }, ds);
     var t = dayInfo(todayIso()), cur = dayInfo(ui.planDay);
     $("plan-date").textContent = "今天 " + t.md + " " + t.weekday;
@@ -779,12 +781,8 @@
       rest.appendChild(g1);
     }
     rest.appendChild(el("h4", null, "从菜谱里挑"));
-    var g2 = el("div", "pick-grid");
-    menuFor("dinner").forEach(function (dd) {
-      if (have.indexOf(dd.name) !== -1) return;
-      g2.appendChild(pickCard(dd.name, dd.prep || null, function () { choose(dd.name); }));
-    });
-    rest.appendChild(g2);
+    var wished = ws.map(function (w) { return w.dish; });
+    rest.appendChild(dishGrid({ meal: "dinner", skip: function (n) { return have.indexOf(n) !== -1 || wished.indexOf(n) !== -1; }, onPick: choose }));
     sheet.appendChild(closeBtn("先不定，返回"));
     openSheet();
   }
@@ -1206,30 +1204,41 @@
     openSheet();
   }
   function openOrderSheet() {
-    sheet.innerHTML = "<h3>" + esc(pname(ui.me)) + "，晚饭想吃什么？</h3>" + '<p class="sheet-sub">挑一道，再选有多想吃。</p>';
-    var g = el("div", "pick-grid");
+    sheet.innerHTML = "<h3>" + esc(pname(ui.me)) + "，晚饭想吃什么？</h3>" + '<p class="sheet-sub">说或写菜名，或者从下面挑一道，再选有多想吃。</p>';
     var mine = wishes().filter(function (w) { return w.person === ui.me; }).map(function (w) { return w.dish; });
-    menuFor("dinner").forEach(function (dd) {
-      var already = mine.indexOf(dd.name) !== -1;
-      g.appendChild(pickCard(dd.name, already ? "已经点过了" : null, function () { if (already) { toast("已经点过了"); return; } openCravePicker(dd.name); }));
-    });
-    sheet.appendChild(g);
-    sheet.appendChild(el("h4", null, "菜谱里没有？写下来"));
+    function want(name) { if (mine.indexOf(name) !== -1) { toast("已经点过了"); return; } openCravePicker(name); }
     var row = el("div", "name-row");
     var input = el("input", "add-input"); input.type = "text"; input.placeholder = "比如：冬瓜排骨汤"; input.setAttribute("aria-label", "想吃的菜名");
-    row.appendChild(input); row.appendChild(voiceButton(input, "说话说菜名"));
+    var mic = el("button", "voice-btn", MIC_SVG); mic.type = "button"; mic.setAttribute("aria-label", "说话说菜名");
+    mic.addEventListener("click", function () { startVoice(input, function () { input.value = cleanDish(input.value); showFound(); }); });
+    row.appendChild(input); row.appendChild(mic);
     sheet.appendChild(row);
-    sheet.appendChild(btn("sheet-cta", "下一步：确认", function () {
-      var name = trim(input.value);
-      if (!name) { toast("先写菜名"); input.focus(); return; }
-      confirmPanel("对吗？", "想吃这道：", name, "对，下一步选有多想吃", function () {
-        if (!dish(name)) newDish(name, "dinner", guessCat(name), [], [], true);
-        openCravePicker(name);
-      }, openOrderSheet);
-    }));
-    sheet.appendChild(btn("rec-inline", "✨ 帮我想新菜", function () {
+    var found = el("div", "found-box"); sheet.appendChild(found);
+    var rest = el("div"); sheet.appendChild(rest);
+    function showFound() {
+      var q = cleanDish(input.value);
+      found.innerHTML = ""; rest.hidden = !!q;
+      if (!q) return;
+      var ms = findDishes(q, "dinner");
+      if (ms.length) {
+        found.appendChild(el("h4", null, "菜谱里有"));
+        var g = el("div", "pick-grid");
+        ms.slice(0, 6).forEach(function (n) { g.appendChild(pickCard(n, mine.indexOf(n) !== -1 ? "已经点过了" : null, function () { want(n); })); });
+        found.appendChild(g);
+      }
+      if (!dish(q)) found.appendChild(btn("sheet-cta", "想吃「" + q + "」（菜谱里没有，加进去）", function () {
+        confirmPanel("对吗？", "想吃这道：", q, "对，下一步选有多想吃", function () {
+          if (!dish(q)) newDish(q, "dinner", guessCat(q), [], [], true);
+          openCravePicker(q);
+        }, openOrderSheet);
+      }));
+    }
+    input.addEventListener("input", showFound);
+    rest.appendChild(btn("rec-inline", "✨ 帮我想新菜", function () {
       openRecommend({ meal: "dinner", pickText: "想吃这道", onPick: function (r) { addRec(r); openCravePicker(r.name, true); }, back: openOrderSheet });
     }));
+    rest.appendChild(el("h4", null, "从菜谱里挑"));
+    rest.appendChild(dishGrid({ meal: "dinner", sub: function (d) { return mine.indexOf(d.name) !== -1 ? "已经点过了" : null; }, onPick: want }));
     sheet.appendChild(closeBtn("不点了，返回"));
     openSheet();
   }
@@ -1343,6 +1352,38 @@
       { id: "dish:" + name, data: { name: name, meal: meal, cat: cat, ings: ings || [], steps: steps || [], order: newOrder() } }
     ]);
     if (!silent) log("菜谱里加了新菜：" + name);
+  }
+  // 选菜用的单子：上面一排分类，下面按「有人想吃 > 最近常做 > 其他」排，新加的菜标「新」
+  function cookCount(name) {
+    var since = iso(addDays(new Date(), -60)), n = 0;
+    S.list("dinner:").forEach(function (x) { var d = x.id.slice(7); if (d >= since && d <= todayIso() && x.data && (x.data.dishes || []).indexOf(name) !== -1) n++; });
+    return n;
+  }
+  function isNewDish(d) { return d && d.order < 0 && Date.now() / 1000 + d.order < 7 * 86400; }
+  function dishGrid(opts) {
+    var wrap = el("div", "dish-grid-wrap"), cat = "all";
+    var list = menuFor(opts.meal).filter(function (d) { return !opts.skip || !opts.skip(d.name); });
+    var cnt = {}; list.forEach(function (d) { cnt[d.name] = cookCount(d.name); });
+    list.sort(function (a, b) { return wantLevel(b.name) - wantLevel(a.name) || cnt[b.name] - cnt[a.name] || (a.order || 0) - (b.order || 0); });
+    var has = {}; list.forEach(function (d) { dishTags(d).forEach(function (t) { has[t] = (has[t] || 0) + 1; }); });
+    var chips = el("div", "filter-row");
+    var grid = el("div", "pick-grid");
+    function draw() {
+      chips.innerHTML = ""; grid.innerHTML = "";
+      D.CATS.forEach(function (f) {
+        if (f.id !== "all" && !has[f.id]) return;
+        chips.appendChild(btn("filter-chip" + (cat === f.id ? " on" : ""), f.label, function () { cat = f.id; draw(); }));
+      });
+      list.forEach(function (d) {
+        if (cat !== "all" && dishTags(d).indexOf(cat) === -1) return;
+        var sub = (opts.sub && opts.sub(d)) || (wantLevel(d.name) ? "有人想吃" : cnt[d.name] ? "最近做过 " + cnt[d.name] + " 次" : isNewDish(d) ? "🆕 新加的" : d.prep || null);
+        grid.appendChild(pickCard(d.name, sub, function () { opts.onPick(d.name); }));
+      });
+      if (!grid.children.length) grid.appendChild(el("p", "sheet-sub", "这一类还没有菜。"));
+    }
+    draw();
+    wrap.appendChild(chips); wrap.appendChild(grid);
+    return wrap;
   }
   // 按菜名找菜谱里的菜：一样 > 包含 > 字差不多（「红烧」找到红烧带鱼，「带鱼」也找得到）
   function findDishes(q, meal) {
@@ -2422,15 +2463,20 @@
     var lastBase = cookBaseIso(), lastBf = bfDays()[0];
     setInterval(function () {
       var b = cookBaseIso(), f = bfDays()[0];
-      if (b !== lastBase) { lastBase = b; ui.cookDay = b; ui.famDay = b; queueRender(); }
+      if (b !== lastBase) { lastBase = b; ui.cookDay = b; ui.famDay = b; ui.planDay = b; queueRender(); }
       if (f !== lastBf) { lastBf = f; queueRender(); }
     }, 60000);
-    // 过了半夜，日子要往后挪
-    var lastDay = todayIso();
+    // 手机放下再拿起来：隔了夜、或者离开超过 1 小时，选的日子回到默认（7 点前今天，7 点后明天）
+    // 不然晚上看的「明天」第二天早上还停着，会被当成今天（以前这里还会跳到新的明天，更容易看错）
+    var lastDay = todayIso(), hiddenAt = 0;
     document.addEventListener("visibilitychange", function () {
-      if (document.hidden) return;
+      if (document.hidden) { hiddenAt = Date.now(); return; }
       weatherTries = 0; loadWeather();
-      if (todayIso() !== lastDay) { lastDay = todayIso(); ui.planDay = tomorrowIso(); loadWeather(); queueRender(); }
+      if (todayIso() !== lastDay || (hiddenAt && Date.now() - hiddenAt > 3600000)) {
+        lastDay = todayIso();
+        var b = cookBaseIso(); ui.planDay = b; ui.cookDay = b; ui.famDay = b;
+        queueRender();
+      }
     });
   }
   boot();
