@@ -279,3 +279,11 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
 .stock-btn { border-color: #e0d3bf !important; color: #6f6154 !important; }
 .stock-btn.back { border-color: #2e7d5b !important; color: #2e7d5b !important; background: #eef6ee !important; }
 .bf-new-btn { margin-top: 0; }
+
+/* 定晚饭里搜菜名、帮我想新菜 */
+.found-box:not(:empty) { margin-top: 12px; }
+.rec-inline { width: 100%; min-height: 54px; margin: 14px 0 4px; border-radius: 16px; border: 2px dashed #e7c46a; background: #fff8e6; color: #6b4a0a; font-family: inherit; font-size: 18px; font-weight: 800; cursor: pointer; }
+.rec-styles { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.style-chip { min-height: 46px; padding: 0 16px; border-radius: 999px; border: 2px solid #ecd9a8; background: #fffaf0; font-family: inherit; font-size: 17px; font-weight: 800; color: #6b4a0a; cursor: pointer; }
+.style-chip.on { background: #f6cf6a; border-color: #e0b445; color: #2c2218; }
+.rec-loading { text-align: center; font-size: 18px; font-weight: 800; padding: 22px 12px; }
