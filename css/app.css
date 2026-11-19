@@ -293,3 +293,12 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
 .day-big .db-note { font-size: 15px; font-weight: 800; color: #8a5a00; background: #fde3a0; border-radius: 999px; padding: 2px 10px; align-self: center; }
 /* 选菜单子上面的分类 */
 .dish-grid-wrap .filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+
+/* 语音确认页：带照片，标清楚是菜谱里有的还是新菜 */
+.vp-item { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.vp-item .vp-media { flex: 0 0 auto; }
+.vp-item .vp-media img, .vp-item .vp-media .dish-tile { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; }
+.vp-item .vp-dish { flex: 1; min-width: 0; }
+.vp-item .vp-acts { flex-basis: 100%; }
+.vp-badge { display: block; width: fit-content; margin-top: 4px; font-size: 13px; font-weight: 800; border-radius: 999px; padding: 1px 10px; background: #fff3df; color: #8a5a00; }
+.vp-badge.ok { background: #eef6ee; color: #2e7d5b; }
