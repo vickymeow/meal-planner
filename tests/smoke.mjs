@@ -452,7 +452,7 @@ const autoT0 = Date.now();
 await C.waitForSelector(".sheet .vp-item", { timeout: 9000 }).catch(() => {});
 check("说完停一下，不用点就自动结束", (await C.locator(".sheet .vp-item").count()) > 0, (Date.now() - autoT0) + "ms");
 check("录音转成 16k 单声道 WAV 发给 Qwen", lastAudio && lastAudio.riff === "RIFF" && lastAudio.wave === "WAVE" && lastAudio.rate === 16000 && lastAudio.bytes > 20000, JSON.stringify(lastAudio));
-check("听写回来的字自动接着听懂：周五不在家", /(周五|明天|后天)不在家吃饭/.test(await C.locator(".sheet .vp-item").first().innerText()), await C.locator(".sheet").innerText().then((t) => t.slice(0, 80).replace(/\n/g, " ")));
+check("听写回来的字自动接着听懂：周五不在家", /(周五|明天|今天|后天)不在家吃饭/.test(await C.locator(".sheet .vp-item").first().innerText()), await C.locator(".sheet").innerText().then((t) => t.slice(0, 80).replace(/\n/g, " ")));
 await C.locator(".sheet .sheet-close").last().click();
 // 加新菜：AI 写配料和做法
 await C.click("#nav-menu");
@@ -462,6 +462,51 @@ await C.locator(".sheet .ai-btn").click();
 await C.waitForTimeout(300);
 check("加新菜：AI 写好配料和做法", /肥牛卷 400克/.test(await C.locator(".sheet textarea").first().inputValue()) && /酸汤/.test(await C.locator(".sheet textarea").nth(1).inputValue()));
 await C.locator(".sheet .sheet-close").last().click();
+
+// 在「加新菜」那页说了一整句话：要听懂是「明天晚饭做红烧肉」，不能把整句话当成菜名
+const tmrIso = await M.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); });
+await M.click("#nav-menu");
+await M.click("#menu-add-btn");
+await M.fill(".sheet input.add-input", "明天晚上还是吃红烧肉");
+await M.locator(".sheet .sheet-cta").click();
+await M.waitForSelector(".sheet .vp-item");
+const sentTxt = await M.locator(".sheet .vp-item").first().innerText();
+check("菜名那格里写了一句话：听懂成「明天晚饭做红烧肉」", /明天晚饭做「红烧肉」/.test(sentTxt) && /菜谱里有的/.test(sentTxt) && (await M.locator(".sheet .vp-item img").count()) === 1, sentTxt.replace(/\n/g, " "));
+await M.locator(".sheet .sheet-cta").click(); await M.waitForTimeout(300);
+check("排进了明天晚饭，没有建出一道叫整句话的菜", (await M.evaluate((d) => MPStore.get("dinner:" + d).dishes.includes("红烧肉"), tmrIso)) && ![...db.keys()].some((k) => k.startsWith("dish:") && /明天|还是/.test(k)));
+// 没说哪天：「还是吃清蒸鲈鱼」也认得出是菜谱里的菜
+await M.click("#menu-add-btn");
+await M.fill(".sheet input.add-input", "还是吃清蒸鲈鱼吧");
+await M.locator(".sheet .sheet-cta").click();
+await M.waitForSelector(".sheet .vp-item");
+check("「还是吃清蒸鲈鱼吧」认出是菜谱里的清蒸鲈鱼", /晚饭做「清蒸鲈鱼」/.test(await M.locator(".sheet .vp-item").first().innerText()));
+await M.locator(".sheet .sheet-close").last().click();
+// 只写一个真的新菜名：照原来的走，不打扰
+await M.click("#menu-add-btn");
+await M.fill(".sheet input.add-input", "佛跳墙");
+await M.locator(".sheet .sheet-cta").click(); await M.waitForTimeout(200);
+check("只写一个新菜名，还是照原来的加新菜", /加进晚饭菜谱/.test(await M.locator(".sheet").innerText()) && /佛跳墙/.test(await M.locator(".sheet").innerText()));
+await M.locator(".sheet .sheet-close").last().click();
+// 输入框旁边的小话筒：说一整句也听得懂（假听写回来的是「我周五不在家吃饭。」）
+await C.evaluate(() => { delete navigator.mediaDevices.getUserMedia; });
+await C.click("#nav-menu");
+await C.click("#menu-add-btn");
+await C.locator(".sheet .name-row .voice-btn").click();
+await C.waitForSelector("#rec-bar:not([hidden])");
+await C.waitForTimeout(1200);
+await C.locator("#rec-bar").click();
+await C.waitForSelector(".sheet .vp-item", { timeout: 15000 });
+check("加新菜页的小话筒说整句话：听懂成「周五不在家」，不是菜名", /(周五|明天|今天|后天)不在家吃饭/.test(await C.locator(".sheet .vp-item").first().innerText()));
+await C.locator(".sheet .sheet-close").last().click();
+// 买菜那格也一样
+await M.click("#nav-buy");
+if (!(await M.locator("#custom-name").isVisible())) await M.click("#custom-toggle");
+await M.fill("#custom-name", "后天晚饭做番茄炒蛋");
+await M.click("#custom-add-btn");
+await M.waitForSelector(".sheet .vp-item");
+check("买菜那格写了一句话也听懂", /后天晚饭做「番茄炒蛋」/.test(await M.locator(".sheet .vp-item").first().innerText()) && !/后天晚饭/.test(await M.locator("#custom-list").innerText()));
+await M.locator(".sheet .sheet-close").last().click();
+await M.click("#nav-today");
 
 // 9. 全中文；没有中英文混写（菜名、人名 Vicky 和品牌名 Weee 除外）
 const visible = await M.locator("body").innerText();

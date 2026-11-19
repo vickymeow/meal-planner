@@ -493,10 +493,11 @@
       return btoa(bin);
     });
   }
-  function voiceButton(input, label) {
+  // plain = true：只听写（比如反馈），不去听懂
+  function voiceButton(input, label, plain) {
     var b = el("button", "voice-btn", MIC_SVG); b.type = "button";
     b.setAttribute("aria-label", label || "说话输入");
-    b.addEventListener("click", function () { startVoice(input); });
+    b.addEventListener("click", function () { startVoice(input, plain ? null : function () { routeIfSentence(input.value); }); });
     return b;
   }
 
@@ -745,7 +746,7 @@
     var srow = el("div", "name-row");
     var sin = el("input", "add-input"); sin.type = "text"; sin.placeholder = "说或写菜名，比如：红烧肉"; sin.setAttribute("aria-label", "菜名");
     var smic = el("button", "voice-btn", MIC_SVG); smic.type = "button"; smic.setAttribute("aria-label", "说菜名");
-    smic.addEventListener("click", function () { startVoice(sin, function () { sin.value = cleanDish(sin.value); showFound(); }); });
+    smic.addEventListener("click", function () { startVoice(sin, function () { if (routeIfSentence(sin.value)) return; sin.value = cleanDish(sin.value); showFound(); }); });
     srow.appendChild(sin); srow.appendChild(smic);
     sheet.appendChild(srow);
     var found = el("div", "found-box");
@@ -762,7 +763,8 @@
         ms.slice(0, 6).forEach(function (n) { g.appendChild(pickCard(n, have.indexOf(n) !== -1 ? "已经定上了" : null, function () { choose(n); })); });
         found.appendChild(g);
       } else found.appendChild(el("p", "sheet-sub", "菜谱里还没有「" + q + "」。"));
-      if (!dish(q)) found.appendChild(btn("sheet-cta", "＋ 加新菜「" + q + "」，定进" + dayName(id), function () {
+      if (!dish(q)) found.appendChild(btn("sheet-cta", isSentence(sin.value) ? "听懂这句话，帮我办" : "＋ 加新菜「" + q + "」，定进" + dayName(id), function () {
+        if (routeIfSentence(sin.value)) return;
         newDish(q, "dinner", guessCat(q), [], []);
         fillRecipeLater(q, "dinner");
         choose(q);
@@ -1129,6 +1131,7 @@
     sheet.appendChild(btn("sheet-cta", "告诉妈妈我想吃", function () {
       var name = trim(input.value);
       if (!name) { toast("先写想吃什么"); input.focus(); return; }
+      if (routeIfSentence(name)) return;
       if (addBfWish(name)) closeSheet();
     }));
     sheet.appendChild(btn("sheet-close", "返回", backTo || closeSheet));
@@ -1207,7 +1210,7 @@
     var row = el("div", "name-row");
     var input = el("input", "add-input"); input.type = "text"; input.placeholder = "比如：冬瓜排骨汤"; input.setAttribute("aria-label", "想吃的菜名");
     var mic = el("button", "voice-btn", MIC_SVG); mic.type = "button"; mic.setAttribute("aria-label", "说话说菜名");
-    mic.addEventListener("click", function () { startVoice(input, function () { input.value = cleanDish(input.value); showFound(); }); });
+    mic.addEventListener("click", function () { startVoice(input, function () { if (routeIfSentence(input.value)) return; input.value = cleanDish(input.value); showFound(); }); });
     row.appendChild(input); row.appendChild(mic);
     sheet.appendChild(row);
     var found = el("div", "found-box"); sheet.appendChild(found);
@@ -1223,7 +1226,8 @@
         ms.slice(0, 6).forEach(function (n) { g.appendChild(pickCard(n, mine.indexOf(n) !== -1 ? "已经点过了" : null, function () { want(n); })); });
         found.appendChild(g);
       }
-      if (!dish(q)) found.appendChild(btn("sheet-cta", "想吃「" + q + "」（菜谱里没有，加进去）", function () {
+      if (!dish(q)) found.appendChild(btn("sheet-cta", isSentence(input.value) ? "听懂这句话，帮我办" : "想吃「" + q + "」（菜谱里没有，加进去）", function () {
+        if (routeIfSentence(input.value)) return;
         confirmPanel("对吗？", "想吃这道：", q, "对，下一步选有多想吃", function () {
           if (!dish(q)) newDish(q, "dinner", guessCat(q), [], [], true);
           openCravePicker(q);
@@ -1637,6 +1641,7 @@
     sheet.appendChild(btn("sheet-cta", "下一步：确认", function () {
       var name = trim(input.value);
       if (!name) { toast("先写菜名"); input.focus(); return; }
+      if (routeIfSentence(name)) return;
       if (dish(name)) { toast("菜谱里已经有「" + name + "」了"); return; }
       st.name = name; st.ings = ings.value; st.steps = steps.value;
       confirmPanel("对吗？", "加进" + (st.meal === "breakfast" ? "早饭" : "晚饭") + "菜谱：", name, "对，就这样", function () {
@@ -1882,9 +1887,10 @@
   });
   setFold($("custom-toggle"), false, "＋ 自己加东西", "收起");
   $("custom-voice").innerHTML = MIC_SVG;
-  $("custom-voice").addEventListener("click", function () { startVoice($("custom-name")); });
+  $("custom-voice").addEventListener("click", function () { startVoice($("custom-name"), function () { if (routeIfSentence($("custom-name").value)) $("custom-name").value = ""; }); });
   $("custom-add-btn").addEventListener("click", function () {
     var n = $("custom-name"), q = $("custom-qty");
+    if (routeIfSentence(n.value)) { n.value = ""; return; }
     if (addCustom(n.value, q.value)) { n.value = ""; q.value = ""; } else n.focus();
   });
   $("staple-add-btn").addEventListener("click", function () {
@@ -1975,7 +1981,7 @@
       var box = el("div", "fb-box");
       var row = el("div", "name-row");
       var input = el("input", "add-input"); input.type = "text"; input.placeholder = "想说什么"; input.setAttribute("aria-label", "反馈内容");
-      row.appendChild(input); row.appendChild(voiceButton(input, "说话输入反馈"));
+      row.appendChild(input); row.appendChild(voiceButton(input, "说话输入反馈", true));
       box.appendChild(row);
       box.appendChild(btn("sheet-cta", "提交反馈", function () {
         var t = trim(input.value);
@@ -2047,7 +2053,7 @@
       var end = i + 1 < clean.length ? clean[i + 1].idx : text.length;
       var seg = text.slice(m.idx + m.len, end)
         .replace(/^[：:，,、。\s]+/, "")
-        .replace(/^(还要|还有|还|再|然后|另外|就)+/, "")
+        .replace(/^(还是|那就|还要|还有|还|再|然后|另外|就)+/, "")
         .replace(/(晚饭|晚上|安排|我们|我想|想|吃|做|来个|来一个|弄个)/g, "")
         .replace(/^(的|个|一个|一道)/, "")
         .replace(/[：:，,、。．.！!\s和跟还有]+$/, "");
@@ -2081,6 +2087,40 @@
   }
 
   // ---------- 语音助手：说一句话 → 听懂要办的事 → 确认 → 办 ----------
+  // 是不是一句话（而不是一个菜名）：带哪天、带「吃 / 做 / 想 / 买 / 还是」这类字，或者是「菜谱里有的菜 + 别的字」
+  var FILLER = /^[还是就那要想吃做来个弄的吧啊呀了也再我们给一道份点晚上饭早今明后天餐，,。 ]*$/;
+  function knownDishIn(text) {
+    var best = null;
+    allDishes().forEach(function (d) { if (d.name.length >= 2 && text.indexOf(d.name) !== -1 && (!best || d.name.length > best.length)) best = d.name; });
+    return best;
+  }
+  function isSentence(text) {
+    text = trim(text); if (!text || dish(text)) return false;
+    if (dayWords().some(function (x) { return x.words.some(function (w) { return text.indexOf(w) !== -1; }); })) return true;
+    if (/周末|这周|这几天|每天|早上|晚上|中午|早饭|晚饭|早餐|晚餐/.test(text)) return true;
+    if (/想吃|要吃|我想|我要|不在家|不回|回家吃|在家吃|还是|帮我|给我|要买|去买|不吃|安排|定一下|[，,。！？!?]/.test(text)) return true;
+    if (/^(吃|做|买|来个|来一个|弄个|就吃|就做)/.test(text)) return true;
+    var k = knownDishIn(text);
+    if (k && k !== text && FILLER.test(text.replace(k, ""))) return true;
+    return false;
+  }
+  // 是一句话就交给语音助手（听懂 → 给人看一眼 → 才办），返回 true；只是个菜名就返回 false，照原来的走
+  function routeIfSentence(text) {
+    text = trim(text);
+    if (!isSentence(text)) return false;
+    openSheet();
+    runAssistant(text);
+    return true;
+  }
+  // 把听到的菜名对上菜谱：「还是牛排骨」→「牛排骨」；对不上才当新菜
+  function normalizeDish(raw) {
+    raw = trim(raw); if (!raw || dish(raw)) return raw;
+    var c = trim(raw.replace(/^(那就|还是|就|还|再|也|要|想|我们|我|今天|明天|后天|今晚|明晚|晚上|早上|晚饭|早饭)+/, "").replace(/^(吃|做|来个|来一个|来点|弄个)+/, "").replace(/(吧|啊|呀|哦|了|啦|呢)+$/, ""));
+    if (c && dish(c)) return c;
+    var k = knownDishIn(raw);
+    if (k && FILLER.test(raw.replace(k, ""))) return k;
+    return c || raw;
+  }
   function matchDish(raw, meal) {
     raw = trim(raw); if (!raw) return raw;
     var list = menuFor(meal).map(function (d) { return d.name; }), best = null;
@@ -2119,6 +2159,11 @@
         vpParse(seg).forEach(function (it) { out.push({ type: "dinner", date: it.dayId, dish: it.name || it.raw }); });
         return;
       }
+      // 妈妈没说哪天、但说了菜谱里有的菜（「还是吃牛排骨」）：定进正在排的那天
+      if (isMom() && !/想吃|馋/.test(seg)) {
+        var kd = knownDishIn(seg);
+        if (kd && isDinnerDish(kd)) { out.push({ type: "dinner", date: days().indexOf(ui.planDay) !== -1 ? ui.planDay : tomorrowIso(), dish: kd }); return; }
+      }
       var lv = /超想|特别想|太想|馋死/.test(seg) ? 3 : /很想|好想/.test(seg) ? 2 : 2;
       var wd = cleanDish(seg.replace(/.*?(想吃|要吃|馋|想要|做个|做)/, "").replace(/(超|很|好|特别|太)$/, ""));
       if (wd && /想吃|要吃|馋|想要|做/.test(seg)) wd.split(/[和跟、]|还有/).map(cleanDish).filter(Boolean).forEach(function (n) { out.push({ type: "wish", dish: matchDish(n, "dinner"), level: lv }); });
@@ -2130,6 +2175,7 @@
     var needDate = { home: 1, dinner: 1, breakfast: 1 };
     if (needDate[a.type] && days().indexOf(a.date) === -1) return null;
     var dish = trim(a.dish || "");
+    if ((a.type === "wish" || a.type === "dinner" || a.type === "breakfast") && dish !== D.BF_SKIP && dish !== D.BF_ANY) dish = normalizeDish(dish);
     if ((a.type === "wish" || a.type === "dinner" || a.type === "breakfast" || a.type === "buy") && !dish) return null;
     if (a.type === "dinner" && !isMom()) return { type: "wish", dish: dish, level: 2 };
     return { type: a.type, date: a.date || "", dish: dish, on: a.on !== false, level: a.level || 2, qty: trim(a.qty || "") };
@@ -2192,7 +2238,11 @@
     sheet.innerHTML = "<h3>" + (list.length ? "听懂的是这样，对吗？" : "没听懂，再说一次吧") + "</h3>" +
       '<p class="sheet-sub">「' + esc(text) + "」" + (reply ? "<br>" + esc(reply) : "") + "</p>";
     list.forEach(function (a, i) {
-      var card = el("div", "vp-item", '<div class="vp-dish" style="font-size:21px">' + esc(actionText(a)) + "</div>");
+      var isDish = (a.type === "dinner" || a.type === "wish" || a.type === "breakfast") && a.dish !== D.BF_SKIP && a.dish !== D.BF_ANY;
+      var known = isDish && dish(a.dish) && !stockOf(a.dish);
+      var card = el("div", "vp-item", (isDish ? '<div class="vp-media">' + (known ? dishMedia(a.dish) : '<div class="dish-tile" aria-hidden="true">新</div>') + "</div>" : "") +
+        '<div class="vp-dish" style="font-size:21px">' + esc(actionText(a)) +
+        (isDish ? '<span class="vp-badge' + (known ? " ok" : "") + '">' + (known ? "菜谱里有的" : a.type === "breakfast" ? "家里还没有，会告诉妈妈" : "新菜，会加进菜谱") + "</span>" : "") + "</div>");
       var acts = el("div", "vp-acts");
       acts.appendChild(btn("mini-btn danger", "这条不要", function () { list.splice(i, 1); showAssistActions(list, reply, text); }));
       card.appendChild(acts);

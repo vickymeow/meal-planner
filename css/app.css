@@ -296,3 +296,11 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
 
 /* 新菜：还没吃过的，菜名后面一个小「新」 */
 .new-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #e8584a; color: #fff; font-size: 12.5px; font-weight: 900; line-height: 1.5; vertical-align: 3px; letter-spacing: 0; font-family: "PingFang SC", "Noto Sans SC", sans-serif; }
+/* 语音确认页：带照片，标清楚是菜谱里有的还是新菜 */
+.vp-item { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.vp-item .vp-media { flex: 0 0 auto; }
+.vp-item .vp-media img, .vp-item .vp-media .dish-tile { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; }
+.vp-item .vp-dish { flex: 1; min-width: 0; }
+.vp-item .vp-acts { flex-basis: 100%; }
+.vp-badge { display: block; width: fit-content; margin-top: 4px; font-size: 13px; font-weight: 800; border-radius: 999px; padding: 1px 10px; background: #fff3df; color: #8a5a00; }
+.vp-badge.ok { background: #eef6ee; color: #2e7d5b; }
