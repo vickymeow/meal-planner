@@ -37,19 +37,34 @@
       num: String(d.getDate()),
       md: (d.getMonth() + 1) + "月" + d.getDate() + "日",
       weekday: "星期" + WD[d.getDay()],
-      rel: diff === 0 ? "今天" : diff === 1 ? "明天" : diff === 2 ? "后天" : ""
+      rel: diff === 0 ? "今天" : diff === 1 ? "明天" : diff === 2 ? "后天" : "",
+      wk: weekOffset(d) // 0 这周，1 下周，2 下下周（周一开始算）
     };
   }
   function days() { var out = [], t = new Date(); for (var i = 0; i < 7; i++) out.push(iso(addDays(t, i))); return out; }
+  // 说话、听懂用的日子：两个礼拜（「下周四」也认得）
+  function days14() { var out = [], t = new Date(); for (var i = 0; i < 14; i++) out.push(iso(addDays(t, i))); return out; }
   // 做饭看的日子：晚上 7 点以后，今天的饭做完了，从明天开始排
   var CUTOFF_HOUR = 19;
   function cookBaseIso() { var n = new Date(); return iso(n.getHours() >= CUTOFF_HOUR ? addDays(n, 1) : n); }
   // 早饭：过了中午 12 点，今天的早饭就过去了，从明天开始排
   var BF_CUTOFF_HOUR = 12;
   function bfDays() { var n = new Date(), b = n.getHours() >= BF_CUTOFF_HOUR ? addDays(n, 1) : n, out = []; for (var i = 0; i < 7; i++) out.push(iso(addDays(b, i))); return out; }
-  function cookDays() { var b = fromIso(cookBaseIso()), out = []; for (var i = 0; i < 7; i++) out.push(iso(addDays(b, i))); return out; }
+  // 选日子：一般 7 天；两个礼拜里更后面的日子已经定了晚饭（比如「下周四吃火鸡」），就一直排到那天，看得到
+  function cookDays() {
+    var b = fromIso(cookBaseIso()), n = 7;
+    for (var j = 7; j < 14; j++) if (typeof S !== "undefined" && dinner(iso(addDays(b, j))).length) n = j + 1;
+    var out = []; for (var i = 0; i < n; i++) out.push(iso(addDays(b, i)));
+    return out;
+  }
   function eveLabel(id) { var d = dayInfo(id); return d.rel === "今天" ? "今晚" : d.rel === "明天" ? "明晚" : d.rel === "后天" ? "后天晚上" : d.short + "晚上"; }
-  function dayName(id) { var d = dayInfo(id); return d.rel || d.short; }
+  // 一个礼拜以后的日子写清楚是「下周几」，不然「周四」会跟这周的周四搞混
+  function dayName(id) { var d = dayInfo(id); if (d.rel) return d.rel; var diff = Math.round((d.date - fromIso(todayIso())) / 86400000); return diff >= 7 ? (d.wk === 2 ? "下下" : "下") + d.short : d.short; }
+  function weekOffset(d) {
+    var t = new Date(), a = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    var monA = addDays(a, -((a.getDay() + 6) % 7)), monD = addDays(d, -((d.getDay() + 6) % 7));
+    return Math.round((monD - monA) / (7 * 86400000));
+  }
 
   // ---------- 人 ----------
   function person(id) { for (var i = 0; i < D.PEOPLE.length; i++) if (D.PEOPLE[i].id === id) return D.PEOPLE[i]; return null; }
@@ -601,7 +616,7 @@
     var ds = list || days();
     var sd = dayInfo(sel), sdec = dinner(sel).length > 0;
     var notToday = sel !== todayIso();
-    var big = el("div", "day-big" + (notToday ? " not-today" : ""), '<span class="db-rel">' + esc(sd.rel || sd.weekday) + "</span>" +
+    var big = el("div", "day-big" + (notToday ? " not-today" : ""), '<span class="db-rel">' + esc(sd.rel || (dayName(sel) !== sd.short ? dayName(sel) : sd.weekday)) + "</span>" +
       '<span class="db-date">' + esc(sd.md + " " + sd.weekday) + "</span>" +
       (notToday ? '<span class="db-note">看的不是今天</span>' : "") +
       '<span class="db-st' + (sdec ? " ok" : "") + '">' + (sdec ? "晚饭已定 ✓" : "晚饭还没定") + "</span>");
@@ -611,7 +626,7 @@
     ds.forEach(function (id) {
       var d = dayInfo(id), decided = dinner(id).length > 0;
       var b = el("button", "day-chip" + (sel === id ? " on" : ""),
-        '<span class="dc-top">' + esc(d.rel || d.short) + "</span>" +
+        '<span class="dc-top">' + esc(dayName(id)) + "</span>" +
         '<span class="dc-date">' + (d.rel ? d.short + " · " : "") + d.num + "日</span>" +
         '<span class="dc-st' + (decided ? " ok" : "") + '">' + (decided ? "✓ 已定" : "未定") + "</span>");
       b.type = "button"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(sel === id));
@@ -2031,10 +2046,14 @@
   var voiceItems = null;
   function dayWords() {
     var out = [];
-    days().forEach(function (id) {
+    days14().forEach(function (id, i) {
       var d = dayInfo(id), w = WD[d.date.getDay()];
-      var words = ["周" + w, "星期" + w, "礼拜" + w];
-      if (w === "日") words.push("周天", "星期天", "礼拜天");
+      var base = ["周" + w, "星期" + w, "礼拜" + w];
+      if (w === "日") base.push("周天", "星期天", "礼拜天");
+      // 「周四」不带前缀：指最近的那个（7 天以内）；「这周四」「下周四」「下下周四」按周一开始的礼拜算
+      var words = i < 7 ? base.slice() : [];
+      var pre = d.wk === 0 ? ["这", "这个", "本"] : d.wk === 1 ? ["下", "下个", "下一个"] : d.wk === 2 ? ["下下", "下下个"] : [];
+      pre.forEach(function (p) { base.forEach(function (b) { words.push(p + b); }); });
       if (d.rel) words.push(d.rel);
       if (d.rel === "今天") words.push("今晚");
       if (d.rel === "明天") words.push("明晚");
@@ -2065,7 +2084,8 @@
     }
     return { status: "new", name: raw };
   }
-  function vpParse(text) {
+  // 句子里提到的日子：长的先认（「下周四」不会再被当成「周四」）
+  function dayMarks(text) {
     var marks = [];
     dayWords().forEach(function (dw) {
       dw.words.forEach(function (w) {
@@ -2075,7 +2095,17 @@
     });
     marks.sort(function (a, b) { return a.idx - b.idx || b.len - a.len; });
     var clean = [];
-    marks.forEach(function (m) { var last = clean[clean.length - 1]; if (!last || m.idx >= last.idx + last.len) clean.push(m); });
+    marks.forEach(function (m) {
+      var last = clean[clean.length - 1];
+      if (last && m.idx < last.idx + last.len) return;
+      // 「周四」前面紧挨着「下」「这」「本」「个」：是带前缀的说法里的一部分，不单独算
+      if (/[下这本个]/.test(text.charAt(m.idx - 1)) && /^(周|星期|礼拜)/.test(text.substr(m.idx, 2))) return;
+      clean.push(m);
+    });
+    return clean;
+  }
+  function vpParse(text) {
+    var clean = dayMarks(text);
     var items = [];
     clean.forEach(function (m, i) {
       var end = i + 1 < clean.length ? clean[i + 1].idx : text.length;
@@ -2164,7 +2194,7 @@
     var out = [], dw = dayWords();
     String(text).split(/[，,。；;！!？?\n]+|然后|另外/).map(trim).filter(Boolean).forEach(function (seg) {
       var ds = [];
-      dw.forEach(function (x) { if (x.words.some(function (w) { return seg.indexOf(w) !== -1; })) ds.push(x.id); });
+      dayMarks(seg).forEach(function (m) { if (ds.indexOf(m.id) === -1) ds.push(m.id); });
       if (/周末/.test(seg)) days().forEach(function (id) { var g = fromIso(id).getDay(); if ((g === 0 || g === 6) && ds.indexOf(id) === -1) ds.push(id); });
       if (/这几天|这周|这一周|每天/.test(seg) && !ds.length) ds = days().slice();
       var when = ds.length ? ds : [tomorrowIso()];
@@ -2201,7 +2231,7 @@
   function normAction(a) {
     if (!a || !a.type) return null;
     var needDate = { home: 1, dinner: 1, breakfast: 1 };
-    if (needDate[a.type] && days().indexOf(a.date) === -1) return null;
+    if (needDate[a.type] && days14().indexOf(a.date) === -1) return null;
     var dish = trim(a.dish || "");
     if ((a.type === "wish" || a.type === "dinner" || a.type === "breakfast") && dish !== D.BF_SKIP && dish !== D.BF_ANY) dish = normalizeDish(dish);
     if ((a.type === "wish" || a.type === "dinner" || a.type === "breakfast" || a.type === "buy") && !dish) return null;
@@ -2253,7 +2283,7 @@
     ai("intent", {
       text: text,
       me: pname(ui.me) + (isMom() ? "（妈妈，做饭的人）" : ""),
-      days: days().map(function (id) { var d = dayInfo(id); return id + " " + (d.rel ? d.rel + " " : "") + d.weekday; }),
+      days: days14().map(function (id) { var d = dayInfo(id); return id + " " + (d.rel ? d.rel + " " : "") + (d.wk === 0 ? "这周" : d.wk === 1 ? "下周" : "下下周") + d.short.slice(1) + "（" + d.weekday + "）"; }),
       breakfast: menuFor("breakfast").map(function (d) { return d.name; }),
       dinner: menuFor("dinner").map(function (d) { return d.name; })
     }).then(function (r) {
