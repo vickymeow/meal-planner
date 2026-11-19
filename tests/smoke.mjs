@@ -463,6 +463,20 @@ const sentTxt = await M.locator(".sheet .vp-item").first().innerText();
 check("菜名那格里写了一句话：听懂成「明天晚饭做红烧肉」", /明天晚饭做「红烧肉」/.test(sentTxt) && /菜谱里有的/.test(sentTxt) && (await M.locator(".sheet .vp-item img").count()) === 1, sentTxt.replace(/\n/g, " "));
 await M.locator(".sheet .sheet-cta").click(); await M.waitForTimeout(300);
 check("排进了明天晚饭，没有建出一道叫整句话的菜", (await M.evaluate((d) => MPStore.get("dinner:" + d).dishes.includes("红烧肉"), tmrIso)) && ![...db.keys()].some((k) => k.startsWith("dish:") && /明天|还是/.test(k)));
+check("办完以后上面出现「撤销」", await M.locator("#undo-bar").isVisible() && /撤销/.test(await M.locator("#undo-bar .ub-btn").innerText()));
+// 撤销：说错了（后天晚饭做东坡肉，一道新菜）→ 点撤销 → 晚饭改回去，新菜也没了，动态里那条也拿掉
+const d2Iso = await M.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 2); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); });
+const before2 = await M.evaluate((d) => JSON.stringify((MPStore.get("dinner:" + d) || {}).dishes || []), d2Iso);
+await M.click("#menu-add-btn");
+await M.fill(".sheet input.add-input", "后天晚饭做东坡肉");
+await M.locator(".sheet .sheet-cta").click();
+await M.waitForSelector(".sheet .vp-item");
+check("新菜在确认页标着「新菜，会加进菜谱」", /新菜，会加进菜谱/.test(await M.locator(".sheet .vp-item").first().innerText()));
+await M.locator(".sheet .sheet-cta").click(); await M.waitForTimeout(300);
+const mid2 = await M.evaluate((d) => [MPStore.get("dinner:" + d).dishes.includes("东坡肉"), !!MPStore.get("dish:东坡肉")], d2Iso);
+await M.locator("#undo-bar .ub-btn").click(); await M.waitForTimeout(300);
+const after2 = await M.evaluate((d) => [JSON.stringify((MPStore.get("dinner:" + d) || {}).dishes || []), !!MPStore.get("dish:东坡肉"), MPStore.list("log:").some((l) => /东坡肉/.test(l.data.text || ""))], d2Iso);
+check("点「撤销」：晚饭改回原样，新菜和动态也拿掉", mid2[0] && mid2[1] && after2[0] === before2 && !after2[1] && !after2[2] && !(await M.locator("#undo-bar").isVisible()), JSON.stringify([mid2, after2]));
 // 没说哪天：「还是吃清蒸鲈鱼」也认得出是菜谱里的菜
 await M.click("#menu-add-btn");
 await M.fill(".sheet input.add-input", "还是吃清蒸鲈鱼吧");

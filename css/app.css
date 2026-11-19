@@ -302,3 +302,9 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
 .vp-item .vp-acts { flex-basis: 100%; }
 .vp-badge { display: block; width: fit-content; margin-top: 4px; font-size: 13px; font-weight: 800; border-radius: 999px; padding: 1px 10px; background: #fff3df; color: #8a5a00; }
 .vp-badge.ok { background: #eef6ee; color: #2e7d5b; }
+
+/* 撤销条：办完事以后在上面出现 10 秒 */
+.undo-bar { position: absolute; left: 12px; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 70; display: flex; align-items: center; gap: 12px;
+  padding: 12px 12px 12px 18px; border-radius: 20px; background: #3a2a1c; color: #fff; box-shadow: 0 12px 28px rgba(60,35,15,.32); font-size: 17px; font-weight: 700; line-height: 1.4; }
+.undo-bar .ub-txt { flex: 1; min-width: 0; }
+.undo-bar .ub-btn { flex: 0 0 auto; min-height: 48px; padding: 0 20px; border-radius: 14px; border: none; background: #f6cf6a; color: #2c2218; font-family: inherit; font-size: 18px; font-weight: 900; cursor: pointer; }

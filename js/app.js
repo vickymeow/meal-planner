@@ -253,6 +253,34 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2600);
   }
 
+  // ---------- 撤销：把一次操作里改过的东西都记下来，点「撤销」就全部改回去 ----------
+  var undoRec = null, undoTimer = null;
+  (function () {
+    var putMany = S.putMany;
+    S.putMany = function (list) {
+      if (undoRec) list.forEach(function (x) {
+        if (!(x.id in undoRec)) { var cur = S.get(x.id); undoRec[x.id] = cur === undefined ? undefined : JSON.parse(JSON.stringify(cur)); }
+      });
+      return putMany.call(S, list);
+    };
+  })();
+  function undoStart() { undoRec = {}; }
+  // 操作做完：上面出一条提示，带「撤销」按钮，10 秒后自己消失
+  function undoOffer(msg) {
+    var rec = undoRec; undoRec = null;
+    if (!rec || !Object.keys(rec).length) { toast(msg); return; }
+    var bar = $("undo-bar");
+    if (!bar) { bar = el("div", "undo-bar"); bar.id = "undo-bar"; bar.setAttribute("role", "status"); $("screen").appendChild(bar); }
+    bar.innerHTML = '<span class="ub-txt">' + esc(msg) + "</span>";
+    bar.appendChild(btn("ub-btn", "撤销", function () {
+      S.putMany(Object.keys(rec).map(function (id) { return rec[id] === undefined ? { id: id, deleted: true } : { id: id, data: rec[id] }; }));
+      bar.hidden = true; clearTimeout(undoTimer);
+      toast("撤销了，改回原来的样子");
+    }, "撤销刚才的操作"));
+    bar.hidden = false;
+    clearTimeout(undoTimer); undoTimer = setTimeout(function () { bar.hidden = true; }, 10000);
+  }
+
   // ---------- 照片 ----------
   var failedImg = {};
   function hash(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
@@ -2249,6 +2277,7 @@
     sheet.scrollTop = 0;
   }
   function applyActions(list) {
+    undoStart();
     var ops = [], dinners = {}, done = [], bfWishLater = [];
     list.forEach(function (a) {
       if (a.type === "home") { ops.push({ id: "home:" + a.date + ":" + ui.me, data: { v: a.on } }); log(dayName(a.date) + (a.on ? "在家吃饭" : "不在家吃饭")); }
@@ -2279,7 +2308,7 @@
       if (stockOf(n) === "out") toast(n + "吃完了，先选别的"); else addBfWish(n);
     });
     closeSheet();
-    toast("办好了！" + done.join("；"));
+    undoOffer("办好了！" + done.join("；"));
   }
   $("voice-fab").addEventListener("click", function () { openAssistant(); });
 
