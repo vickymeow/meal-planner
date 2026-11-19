@@ -251,6 +251,7 @@ const decided = await M.locator("#day-strip .day-chip .dc-st.ok").count();
 check("一周里定了好几天的晚饭", decided === 2, decided + " 天");
 check("一顿能定好几道（妈妈自己决定）", (await M.locator("#dinner-plan .dish-row").count()) === 2);
 // 照着做：只看今天，大图大名，做好了 → 从最近想吃拿掉
+check("妈妈一打开 App（还在定计划）就提前准备声音", aiCalls.tts >= 1, aiCalls.tts + " 次");
 await M.click("#tab-cook");
 await M.waitForTimeout(2200);
 const ttsBefore = aiCalls.tts;
@@ -258,6 +259,16 @@ check("一打开照着做就提前准备好声音", ttsBefore >= 1, ttsBefore + 
 await M.click("#read-btn"); await M.waitForTimeout(500);
 check("点「读给我听」直接用准备好的，不用再等", aiCalls.tts === ttsBefore, aiCalls.tts + " 次");
 check("读给我听：先请 Qwen 真人声音", aiCalls.tts >= 1 && /今天在家吃饭/.test(await M.locator("#read-panel").innerText()));
+// 声音还没准备好（刚换了别的日子）：马上用手机自带的声音读，不让妈妈等
+await M.click("#read-btn"); await M.waitForTimeout(100); // 先停掉上一次
+await M.evaluate(() => { window.__spoke = 0; window.speechSynthesis.speak = () => { window.__spoke++; }; });
+await M.locator("#cook-strip .day-chip").nth(3).click();
+const ttsMid = aiCalls.tts;
+await M.click("#read-btn"); await M.waitForTimeout(400);
+check("声音还没准备好：马上用手机声音读，不等", await M.evaluate(() => window.__spoke) === 1);
+await M.waitForTimeout(600);
+check("同时在后台准备真人声音，下次用", aiCalls.tts > ttsMid, (aiCalls.tts - ttsMid) + " 次");
+await M.click("#read-btn"); await M.waitForTimeout(100);
 await syncBoth(M, C);
 await M.locator("#cook-strip .day-chip").nth(2).click(); await M.waitForTimeout(150);
 const tmrMorning = await M.locator("#morning").innerText();
@@ -727,6 +738,18 @@ await C.fill(".sheet .name-row .add-input", "排骨");
 check("家里人写菜名，菜谱里的马上跳出来", (await C.locator(".sheet .found-box .pick-card").count()) >= 1);
 await C.screenshot({ path: `${SHOTS}/14-fam-picker.png` });
 await C.locator(".sheet .sheet-close").last().click();
+
+// 新菜：家里后来加的、还没吃过的标「新」；吃过（做好了，或者定的那天过去了）就不标
+await M.click("#nav-menu"); await M.waitForTimeout(150);
+await M.locator("#menu-tabs button", { hasText: "晚饭" }).click(); await M.waitForTimeout(150);
+check("菜谱里：新加还没吃过的菜标「新」", await M.locator(".menu-row", { hasText: "酸菜鱼" }).locator(".new-tag").count() === 1);
+check("菜谱里：原来就有的菜不标「新」", await M.locator(".menu-row", { hasText: "红烧带鱼" }).locator(".new-tag").count() === 0);
+await M.evaluate(() => { const d = new Date(); d.setDate(d.getDate() - 1); const iso = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); MPStore.put("dinner:" + iso, { dishes: ["酸菜鱼"] }); });
+await M.click("#nav-today"); await M.waitForTimeout(1000); await M.click("#nav-menu"); await M.waitForTimeout(150);
+await M.locator("#menu-tabs button", { hasText: "晚饭" }).click(); await M.waitForTimeout(150);
+check("定在昨天吃过了，就不再标「新」", await M.locator(".menu-row", { hasText: "酸菜鱼" }).locator(".new-tag").count() === 0);
+check("还没吃过的新菜（定在以后）继续标「新」", await M.locator(".menu-row", { hasText: "黄焖鸡" }).locator(".new-tag").count() === 1);
+await M.locator(".menu-row", { hasText: "黄焖鸡" }).screenshot({ path: `${SHOTS}/16-new-tag.png` });
 
 check("妈妈手机没有脚本报错", mom.errors.length === 0, mom.errors.join(" | "));
 check("小陈手机没有脚本报错", chen.errors.length === 0, chen.errors.join(" | "));
