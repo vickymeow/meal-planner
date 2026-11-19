@@ -357,11 +357,26 @@ Deno.serve(async (req) => {
     }
   }
   // 读出来：返回音频地址
+  // 同一段话只生成一次：存进 mp-tts/{家}/，下次（哪部手机都行）直接拿，点了马上读
   if (body.task === "tts") {
     const text = String(body.text || "").trim().slice(0, 500);
     if (!text) return json({ error: "no text" }, 400);
-    try { return json({ url: await tts(text) }); }
-    catch (e) { console.error("tts error", (e as Error).message); return json({ error: "tts_failed" }, 502); }
+    const path = `${h}/${await sha1(TTS_VOICE + "|" + text)}.wav`;
+    const pub = sb.storage.from("mp-tts").getPublicUrl(path).data.publicUrl;
+    try { const hd = await fetch(pub, { method: "HEAD" }); if (hd.ok) return json({ url: pub, cached: true }); } catch { /* 没存过 */ }
+    try {
+      const tmp = await tts(text);
+      try {
+        const a = await fetch(tmp);
+        if (a.ok) {
+          const bytes = new Uint8Array(await a.arrayBuffer());
+          const up = await sb.storage.from("mp-tts").upload(path, bytes, { contentType: "audio/wav", upsert: true });
+          if (!up.error) return json({ url: pub });
+          console.error("tts upload", up.error.message);
+        }
+      } catch (e) { console.error("tts store", (e as Error).message); }
+      return json({ url: tmp });
+    } catch (e) { console.error("tts error", (e as Error).message); return json({ error: "tts_failed" }, 502); }
   }
 
   let system: string, user: string, schema: Record<string, unknown>;

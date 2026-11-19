@@ -66,4 +66,5 @@ grant execute on function public.mp_push(text, jsonb) to anon, authenticated;
 -- mp_push_subs + mp_push_sub(h, who, sub, enable)：每部手机的通知地址
 -- mp_secrets：后台自己用的钥匙（通知签名密钥由云函数 mp-notify 第一次用时自己生成，不进仓库）
 -- 触发器 mp_items_notify：有新的「家里动态」(log:*) 就叫云函数 mp-notify 发通知
+-- 存储桶 mp-tts（公开、只放音频）：读给我听生成的声音，同一段话只生成一次
 -- 定时任务 mp-breakfast-reminder：每小时 30 分叫一次 mp-notify，家里时间晚上 9:30 提醒点明天早饭

@@ -691,7 +691,7 @@
         var w = wishOf(name), d = dish(name);
         var row = el("div", "dish-row",
           dishMedia(name) +
-          '<div class="dish-info"><div class="dish-name">' + esc(name) + "</div>" +
+          '<div class="dish-info"><div class="dish-name">' + esc(name) + newTag(name) + "</div>" +
           '<div class="dish-from">' + (w ? esc(pname(w.person)) + "想吃的 " + craveTag(w.level) : "妈妈定的") + "</div>" +
           (d && d.prep ? '<span class="prep-tag">⏰ ' + esc(d.prep) + "</span>" : "") + "</div>");
         dishClickRow(row, name);
@@ -878,7 +878,7 @@
   }
   // 提前把要读的话变成声音存着，点了马上读（不用等几秒）
   var ttsCache = { text: "", url: "", t: 0, pending: null }, ttsTimer = null;
-  function ttsFresh(text) { return ttsCache.text === text && ttsCache.url && Date.now() - ttsCache.t < 20 * 60 * 1000; }
+  function ttsFresh(text) { return ttsCache.text === text && ttsCache.url && Date.now() - ttsCache.t < 6 * 3600 * 1000; }
   function getTts(text) {
     if (ttsFresh(text)) return Promise.resolve(ttsCache.url);
     if (ttsCache.pending && ttsCache.pending.text === text) return ttsCache.pending.p;
@@ -890,12 +890,13 @@
     ttsCache.pending = { text: text, p: p };
     return p;
   }
+  // 妈妈的手机一打开、或者菜/早饭有改动，就提前准备好要读的话（服务器也会存着，下次直接拿）
   function prepareTts() {
     if (ttsTimer) return; // 已经在等了：页面再刷新也不重新计时，不然一直准备不上
-    if (!isMom() || ui.mode !== "cook" || ui.view !== "today" || !S.household() || reading || document.hidden) return;
+    if (!isMom() || !S.household() || reading || document.hidden) return;
     ttsTimer = setTimeout(function () {
       ttsTimer = null;
-      if (!isMom() || ui.mode !== "cook" || reading) return;
+      if (!isMom() || reading) return;
       var t = todayScript(); if (!ttsFresh(t)) getTts(t).catch(function () {});
     }, 1500);
   }
@@ -910,19 +911,15 @@
     readAudio.onended = stopReading;
     readAudio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=";
     try { readAudio.play().catch(function () {}); } catch (e) {}
-    if (!S.household()) { phoneVoice(text); return; }
-    var done = false;
-    var fallback = setTimeout(function () { if (!done && reading) { done = true; phoneVoice(text); } }, 12000);
-    getTts(text).then(function (url) {
-      if (done || !reading) return;
-      done = true; clearTimeout(fallback);
-      readAudio.src = url;
-      var pr = readAudio.play();
-      if (pr && pr.catch) pr.catch(function () { if (reading) phoneVoice(text); });
-    }).catch(function () {
-      if (done || !reading) return;
-      done = true; clearTimeout(fallback); phoneVoice(text);
-    });
+    // 真人声音准备好了就马上读；还没好就先用手机自带的声音读，不让妈妈等（真人声音在后台接着准备，下次用）
+    if (!S.household() || !ttsFresh(text)) {
+      phoneVoice(text);
+      if (S.household()) getTts(text).catch(function () {});
+      return;
+    }
+    readAudio.src = ttsCache.url;
+    var pr = readAudio.play();
+    if (pr && pr.catch) pr.catch(function () { if (reading) phoneVoice(text); });
   });
 
   function showMode(mode) {
@@ -1266,7 +1263,7 @@
     if (!dn.length) card.appendChild(el("div", null, '<div style="font-size:17px;color:#8a7967">妈妈还没定这天的晚饭。</div>'));
     dn.forEach(function (name) {
       var w = wishOf(name);
-      var row = el("div", "dish-row", dishMedia(name) + '<div class="dish-info"><div class="dish-name">' + esc(name) + '</div><div class="dish-from">' + (w ? esc(pname(w.person)) + "想吃的" : "妈妈定的") + "</div></div>");
+      var row = el("div", "dish-row", dishMedia(name) + '<div class="dish-info"><div class="dish-name">' + esc(name) + newTag(name) + '</div><div class="dish-from">' + (w ? esc(pname(w.person)) + "想吃的" : "妈妈定的") + "</div></div>");
       dishClickRow(row, name); card.appendChild(row);
     });
     if (!isHome(id, ui.me)) card.appendChild(el("div", "plan-serves", "你这天不在家吃。"));
@@ -1278,7 +1275,7 @@
     function bfRow(it) {
       var name = it.kind === "any" ? "随便" : it.name;
       var row = el("div", "dish-row", (it.kind === "any" ? '<div class="dish-tile" aria-hidden="true">随</div>' : dishMedia(it.name)) +
-        '<div class="dish-info"><div class="dish-name">' + esc(name) + '</div><div class="dish-from">' + esc(pname(it.person)) + "的" + (it.kind === "fallback" ? " · 没点，默认" : "") + "</div></div>");
+        '<div class="dish-info"><div class="dish-name">' + esc(name) + newTag(name) + '</div><div class="dish-from">' + esc(pname(it.person)) + "的" + (it.kind === "fallback" ? " · 没点，默认" : "") + "</div></div>");
       if (it.kind !== "any") dishClickRow(row, it.name);
       return row;
     }
@@ -1359,7 +1356,19 @@
     S.list("dinner:").forEach(function (x) { var d = x.id.slice(7); if (d >= since && d <= todayIso() && x.data && (x.data.dishes || []).indexOf(name) !== -1) n++; });
     return n;
   }
-  function isNewDish(d) { return d && d.order < 0 && Date.now() / 1000 + d.order < 7 * 86400; }
+  // 「新菜」：家里后来加的菜，一直标「新」，直到真吃过（妈妈点了「做好了」，或者定在某天、那天已经过去）
+  var eatenMemo = { t: 0, set: null };
+  function eatenSet() {
+    if (eatenMemo.set && Date.now() - eatenMemo.t < 800) return eatenMemo.set;
+    var out = {}, today = todayIso();
+    S.list("dinner:").forEach(function (x) { if (x.id.slice(7) < today && x.data) (x.data.dishes || []).forEach(function (n) { out[n] = 1; }); });
+    S.list("bf:").forEach(function (x) { var m = x.id.match(/^bf:(\d{4}-\d{2}-\d{2}):/); if (m && m[1] < today && x.data) (x.data.dishes || (x.data.dish ? [x.data.dish] : [])).forEach(function (n) { out[n] = 1; }); });
+    S.list("done:").forEach(function (x) { var m = x.id.match(/^done:[^:]+:(?:dn|bf):(.+)$/); if (m) out[m[1]] = 1; });
+    eatenMemo = { t: Date.now(), set: out };
+    return out;
+  }
+  function isNewDish(d) { if (d && typeof d === "string") d = dish(d); return !!(d && d.order < 0 && !eatenSet()[d.name]); }
+  function newTag(name) { return isNewDish(name) ? '<span class="new-tag">新</span>' : ""; }
   function dishGrid(opts) {
     var wrap = el("div", "dish-grid-wrap"), cat = "all";
     var list = menuFor(opts.meal).filter(function (d) { return !opts.skip || !opts.skip(d.name); });
@@ -1376,7 +1385,7 @@
       });
       list.forEach(function (d) {
         if (cat !== "all" && dishTags(d).indexOf(cat) === -1) return;
-        var sub = (opts.sub && opts.sub(d)) || (wantLevel(d.name) ? "有人想吃" : cnt[d.name] ? "最近做过 " + cnt[d.name] + " 次" : isNewDish(d) ? "🆕 新加的" : d.prep || null);
+        var sub = (opts.sub && opts.sub(d)) || (wantLevel(d.name) ? "有人想吃" : cnt[d.name] ? "最近做过 " + cnt[d.name] + " 次" : isNewDish(d) ? "🆕 新菜，还没吃过" : d.prep || null);
         grid.appendChild(pickCard(d.name, sub, function () { opts.onPick(d.name); }));
       });
       if (!grid.children.length) grid.appendChild(el("p", "sheet-sub", "这一类还没有菜。"));
@@ -1436,7 +1445,7 @@
     list.forEach(function (d, idx) {
       var ws = wishes().filter(function (w) { return w.dish === d.name; });
       var who = ws.map(function (w) { return pname(w.person) + craveOf(w.level).emoji; }).join(" ");
-      var row = el("div", "menu-row" + (ws.length ? " wanted" : ""), dishMedia(d.name) + '<div class="mn-name">' + esc(d.name) +
+      var row = el("div", "menu-row" + (ws.length ? " wanted" : ""), dishMedia(d.name) + '<div class="mn-name">' + esc(d.name) + newTag(d.name) +
         (who ? '<span class="want-tag">想吃：' + esc(who) + "</span>" : "") +
         "<small>" + esc(ingsFor(d.name).slice(0, 3).map(function (x) { return x.split(/\s+/)[0]; }).join("、")) + "</small></div>");
       dishClickRow(row, d.name);
@@ -1856,7 +1865,7 @@
       var bf = bfList(id).filter(function (it) { return it.kind !== "skip"; }).map(function (it) { return it.name; });
       bf = bf.filter(function (n, i) { return bf.indexOf(n) === i; });
       var dn = dinner(id);
-      var link = function (n) { return n === D.BF_ANY ? "随便" : '<span class="dish-link-txt" data-dish="' + esc(n) + '">' + esc(n) + "</span>"; };
+      var link = function (n) { return n === D.BF_ANY ? "随便" : '<span class="dish-link-txt" data-dish="' + esc(n) + '">' + esc(n) + "</span>" + newTag(n); };
       wk.appendChild(el("div", "week-row",
         "<b>" + d.short + " " + d.num + "日</b>" + (d.rel ? "（" + d.rel + "）" : "") + " · " + totalPeople(id) + " 人<br>" +
         '<span class="w-meal">早饭：' + (bf.length ? bf.map(link).join("、") : "不用做") + "</span><br>" +
