@@ -751,6 +751,29 @@ check("定在昨天吃过了，就不再标「新」", await M.locator(".menu-ro
 check("还没吃过的新菜（定在以后）继续标「新」", await M.locator(".menu-row", { hasText: "黄焖鸡" }).locator(".new-tag").count() === 1);
 await M.locator(".menu-row", { hasText: "黄焖鸡" }).screenshot({ path: `${SHOTS}/16-new-tag.png` });
 
+// 「下周四晚上吃火鸡」：是下个礼拜的周四，不是今天（以前今天是周四时会排进今天）
+const nextWk = await M.evaluate(() => {
+  const t = new Date(), a = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  const mon = new Date(a); mon.setDate(a.getDate() - ((a.getDay() + 6) % 7) + 7);
+  const thu = new Date(mon); thu.setDate(mon.getDate() + 3);
+  const f = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  return { thu: f(thu), diff: Math.round((thu - a) / 86400000) };
+});
+await M.click("#nav-menu");
+await M.click("#menu-add-btn");
+await M.fill(".sheet input.add-input", "下周四晚上吃火鸡");
+await M.locator(".sheet .sheet-cta").click();
+await M.waitForSelector(".sheet .vp-item");
+const nwTxt = await M.locator(".sheet .vp-item").first().innerText();
+check("「下周四晚上吃火鸡」听懂成下周四，不是今天", nextWk.diff >= 7 ? /下周四晚饭做「火鸡」/.test(nwTxt) : /晚饭做「火鸡」/.test(nwTxt) && !/今天/.test(nwTxt), nwTxt.replace(/\n/g, " "));
+await M.locator(".sheet .sheet-cta").click(); await M.waitForTimeout(300);
+check("火鸡定进了下周四", await M.evaluate((d) => { const x = MPStore.get("dinner:" + d); return !!x && x.dishes.includes("火鸡"); }, nextWk.thu), nextWk.thu);
+check("今天没有被排进火鸡", await M.evaluate(() => { const t = new Date(); const d = t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); const x = MPStore.get("dinner:" + d); return !x || !x.dishes.includes("火鸡"); }));
+await M.click("#nav-today"); await M.click("#tab-plan"); await M.waitForTimeout(200);
+const stripTxt = await M.locator("#day-strip .day-grid").innerText();
+check("排到下周四的晚饭，在选日子里看得到（写「下周四」）", nextWk.diff < 7 || (/下周四/.test(stripTxt) && /✓ 已定/.test(stripTxt)), stripTxt.replace(/\n/g, " ").slice(-60));
+await M.locator("#day-strip").screenshot({ path: `${SHOTS}/17-next-week.png` });
+
 check("妈妈手机没有脚本报错", mom.errors.length === 0, mom.errors.join(" | "));
 check("小陈手机没有脚本报错", chen.errors.length === 0, chen.errors.join(" | "));
 
