@@ -191,9 +191,17 @@
   function bfPeopleCount(date) { var seen = {}; bfList(date).forEach(function (it) { if (it.kind !== "skip") seen[it.person] = 1; }); return Object.keys(seen).length; }
   function dinner(date) { var x = S.get("dinner:" + date); return (x && x.dishes) || []; }
   function setDinner(date, list) { S.put("dinner:" + date, { dishes: list }); }
-  function wishes() {
+  // 想吃：妈妈点了「以后再做」的（later）不算在「最近想吃」里，放进下面折起来的「以后再做」
+  function allWishes() {
     return S.list("wish:").map(function (x) { return Object.assign({ id: x.id }, x.data); })
       .sort(function (a, b) { return (b.level || 1) - (a.level || 1) || (a.t || 0) - (b.t || 0); });
+  }
+  function wishes() { return allWishes().filter(function (w) { return !w.later; }); }
+  function laterWishes() { return allWishes().filter(function (w) { return w.later; }); }
+  function setLater(w, on) {
+    var data = Object.assign({}, w); delete data.id; data.later = !!on;
+    S.put(w.id, data);
+    toast(on ? "「" + w.dish + "」放进以后再做" : "「" + w.dish + "」拿回来了");
   }
   function wishOf(name) { var w = wishes().filter(function (w) { return w.dish === name; }); return w[0] || null; }
   function craveOf(level) { for (var i = 0; i < D.CRAVES.length; i++) if (D.CRAVES[i].level === level) return D.CRAVES[i]; return D.CRAVES[0]; }
@@ -550,6 +558,8 @@
   function openSheet() { sheetWrap.classList.add("open"); sheet.scrollTop = 0; }
   function closeSheet() { sheetWrap.classList.remove("open"); sheet.innerHTML = ""; }
   sheetWrap.addEventListener("click", function (e) { if (e.target === sheetWrap) closeSheet(); });
+  // 操作说明只给妈妈看；家里人那边让按钮自己说话
+  function momTip(text) { return isMom() ? '<p class="sheet-sub">' + text + "</p>" : ""; }
   function closeBtn(text) { return btn("sheet-close", text || "返回", closeSheet); }
   function pickCard(name, sub, onPick) {
     var b = el("button", "pick-card", dishMedia(name) + '<span class="pk-name">' + esc(name) + (sub ? '<span class="pk-from">' + esc(sub) + "</span>" : "") + "</span>");
@@ -660,13 +670,14 @@
       list.map(function (g) { return '<span class="gb-item">' + esc(g.label) + " · " + g.count + " 位</span>"; }).join("") +
       '<div class="gb-sub">一共 ' + totalPeople(id) + " 人吃饭</div></div></div>";
   }
-  function wishChip(w, canRemove) {
+  function wishChip(w, canRemove, laterBtn) {
     var pd = w.meal === "breakfast" ? null : plannedDay(w.dish);
-    var chip = el("span", "chip" + (pd ? " planned" : ""), esc(w.dish) + (w.meal === "breakfast" ? '<span class="bf-wish-tag">🌅 早饭</span>' : pd ? '<span class="planned-tag">✓ 已安排 · ' + esc(dayName(pd)) + "</span>" : craveTag(w.level)) + (w.msg && !pd ? '<span class="wish-msg">' + esc(w.msg) + "</span>" : ""));
+    var chip = el("span", "chip" + (pd ? " planned" : "") + (w.later ? " later" : "") + (laterBtn ? " has-later" : ""), '<span class="chip-name">' + esc(w.dish) + "</span>" + (w.later ? '<span class="later-tag">以后再做</span>' : w.meal === "breakfast" ? '<span class="bf-wish-tag">🌅 早饭</span>' : pd ? '<span class="planned-tag">✓ 已安排 · ' + esc(dayName(pd)) + "</span>" : craveTag(w.level)) + (w.msg && !pd ? '<span class="wish-msg">' + esc(w.msg) + "</span>" : ""));
     if (w.meal === "breakfast") {
       chip.classList.add("dish-click"); chip.setAttribute("role", "button"); chip.setAttribute("tabindex", "0");
       chip.addEventListener("click", function () { openBfWish(w.dish); });
     } else dishClick(chip, w.dish);
+    if (laterBtn) chip.appendChild(btn("later-btn", w.later ? "拿回来" : "以后再做", function (e) { e.stopPropagation(); setLater(w, !w.later); }, (w.later ? "拿回来：" : "以后再做：") + w.dish));
     if (canRemove) {
       var x = btn("x", "×", function (e) {
         e.stopPropagation();
@@ -687,9 +698,18 @@
       if (p.id === "mom" && !mine.length) return;
       var g = el("div", "wish-group", '<div class="wish-who">' + esc(p.name) + " <span>想吃妈妈做的</span></div>");
       if (!mine.length) g.appendChild(el("div", "wish-none", "最近还没点"));
-      else { var chips = el("div", "chips"); mine.forEach(function (w) { chips.appendChild(wishChip(w, true)); }); g.appendChild(chips); }
+      else { var chips = el("div", "chips"); mine.forEach(function (w) { chips.appendChild(wishChip(w, true, isMom() && !plannedDay(w.dish))); }); g.appendChild(chips); }
       box.appendChild(g);
     });
+    var later = laterWishes();
+    if (later.length) {
+      box.appendChild(foldBtn(ui.laterOpen, "以后再做（" + later.length + "）", "收起", function () { ui.laterOpen = !ui.laterOpen; renderWishes(); }));
+      if (ui.laterOpen) {
+        var lc = el("div", "chips later-chips");
+        later.forEach(function (w) { var c = wishChip(w, true, isMom()); c.insertAdjacentHTML("afterbegin", '<span class="later-who">' + esc(pname(w.person)) + "</span>"); lc.appendChild(c); });
+        box.appendChild(lc);
+      }
+    }
   }
   // 所有折叠都用同一个样子：整行一条，收起时左边写里面有什么，右边 ▼；展开后写「收起」，右边 ▲
   function setFold(b, open, closedHTML, openText) {
@@ -837,7 +857,7 @@
   // =====================================================================
   function finishDish(date, key, name) {
     var ops = [{ id: "done:" + date + ":" + key, data: { t: Date.now() } }];
-    var ws = wishes().filter(function (w) { return w.dish === name; });
+    var ws = allWishes().filter(function (w) { return w.dish === name; });
     ws.forEach(function (w) { ops.push({ id: w.id, deleted: true }); });
     S.putMany(ops);
     log("做好了" + name + " · 谢谢妈妈");
@@ -998,7 +1018,7 @@
   }
   // 今天没做的菜：选改到哪天
   function openMoveDinner(from, name) {
-    sheet.innerHTML = "<h3>「" + esc(name) + "」改到哪天做？</h3>" + '<p class="sheet-sub">点一天就改过去。</p>';
+    sheet.innerHTML = "<h3>「" + esc(name) + "」改到哪天做？</h3>" + momTip("点一天就改过去。");
     var g = el("div", "g-day-row");
     days().filter(function (id) { return id !== from; }).forEach(function (id) {
       var d = dayInfo(id), dn = dinner(id);
@@ -1079,9 +1099,10 @@
     });
     // 3 · 想吃
     var wbox = $("fam-wishes"); wbox.innerHTML = "";
-    var mine = wishes().filter(function (w) { return w.person === me; });
+    var mine = allWishes().filter(function (w) { return w.person === me; });
+    mine = mine.filter(function (w) { return !w.later; }).concat(mine.filter(function (w) { return w.later; }));
     var g = el("div", "wish-group", '<div class="wish-who">' + esc(pname(me)) + " <span>想吃妈妈做的</span></div>");
-    if (!mine.length) g.appendChild(el("div", "wish-none", "还没点，点上面大按钮挑一道。"));
+    if (!mine.length) g.appendChild(el("div", "wish-none", "还没点"));
     else { var chips = el("div", "chips"); mine.forEach(function (w) { chips.appendChild(wishChip(w, true)); }); g.appendChild(chips); }
     wbox.appendChild(g);
     renderGuests();
@@ -1112,7 +1133,7 @@
   function openBreakfast(id, keep) {
     var d = dayInfo(id), cur = bfPicks(id, ui.me);
     var sel = keep || cur.filter(function (n) { return n !== D.BF_ANY && n !== D.BF_SKIP; });
-    sheet.innerHTML = "<h3>" + d.short + "（" + d.md + "）早饭吃什么？</h3>" + '<p class="sheet-sub">可以点好几样：点一下选上，再点一下取消。</p>';
+    sheet.innerHTML = "<h3>" + d.short + "（" + d.md + "）早饭吃什么？</h3>" + momTip("可以点好几样：点一下选上，再点一下取消。");
     var g = el("div", "pick-grid");
     var save = btn("sheet-cta", "", function () {
       if (!sel.length) { toast("先点一样，或者点「随便」"); return; }
@@ -1166,7 +1187,7 @@
     return true;
   }
   function openNewBfWish(backTo) {
-    sheet.innerHTML = "<h3>想吃什么新的早饭？</h3>" + '<p class="sheet-sub">家里还没有的。不定哪天，妈妈买到或做好了会通知你。</p>';
+    sheet.innerHTML = "<h3>想吃什么新的早饭？</h3>";
     var row = el("div", "name-row");
     var input = el("input", "add-input"); input.type = "text"; input.placeholder = "比如：生煎包"; input.setAttribute("aria-label", "想吃的新早饭"); input.id = "bf-wish-input";
     row.appendChild(input); row.appendChild(voiceButton(input, "说话说想吃的早饭"));
@@ -1216,6 +1237,8 @@
   }
   var THANKS = ["谢谢妈妈", "妈妈辛苦啦", "最爱妈妈做的"];
   function addWish(name, level, msg) {
+    var parked = laterWishes().filter(function (w) { return w.person === ui.me && w.dish === name; })[0];
+    if (parked) { setLater(Object.assign(parked, { level: level, msg: msg || parked.msg, t: Date.now() }), false); return; }
     var dup = wishes().some(function (w) { return w.person === ui.me && w.dish === name; });
     if (dup) { toast("「" + name + "」你已经点过了"); return; }
     msg = msg || THANKS[0];
@@ -1228,7 +1251,7 @@
   function openCravePicker(name, asking) {
     if (wishes().some(function (w) { return w.person === ui.me && w.dish === name; })) { toast("「" + name + "」你已经点过了"); closeSheet(); return; }
     var msg = THANKS[0];
-    sheet.innerHTML = "<h3>" + (asking ? "「" + esc(name) + "」加好了，你想吃吗？" : "有多想吃「" + esc(name) + "」？") + "</h3>" + '<p class="sheet-sub">点一下就行，想吃的会排在菜谱最上面。</p>';
+    sheet.innerHTML = "<h3>" + (asking ? "「" + esc(name) + "」加好了，你想吃吗？" : "有多想吃「" + esc(name) + "」？") + "</h3>";
     D.CRAVES.forEach(function (c) {
       var b = el("button", "crave-btn lv" + c.level, '<span class="cb-emoji" aria-hidden="true">' + c.emoji + '</span><span class="cb-txt">' + c.label + "<small>" + c.desc + "</small></span>");
       b.type = "button"; b.setAttribute("aria-label", "想吃程度：" + c.label);
@@ -1247,7 +1270,7 @@
     openSheet();
   }
   function openOrderSheet() {
-    sheet.innerHTML = "<h3>" + esc(pname(ui.me)) + "，晚饭想吃什么？</h3>" + '<p class="sheet-sub">说或写菜名，或者从下面挑一道，再选有多想吃。</p>';
+    sheet.innerHTML = "<h3>" + esc(pname(ui.me)) + "，晚饭想吃什么？</h3>";
     var mine = wishes().filter(function (w) { return w.person === ui.me; }).map(function (w) { return w.dish; });
     function want(name) { if (mine.indexOf(name) !== -1) { toast("已经点过了"); return; } openCravePicker(name); }
     var row = el("div", "name-row");
@@ -1540,7 +1563,7 @@
     return g;
   }
   function openDinnerDays(name, title) {
-    sheet.innerHTML = "<h3>" + esc(title || "「" + name + "」定进哪几天？") + '</h3><p class="sheet-sub">点一天就定上，可以点好几天；再点一下拿掉。</p>';
+    sheet.innerHTML = "<h3>" + esc(title || "「" + name + "」定进哪几天？") + '</h3>' + momTip("点一天就定上，可以点好几天；再点一下拿掉。");
     sheet.appendChild(dinnerDaysRow(name, function () { openDinnerDays(name, title); }));
     sheet.appendChild(btn("sheet-cta", "好了", closeSheet));
     openSheet();
@@ -1554,7 +1577,7 @@
     S.putMany(arr.map(function (d, k) { return { id: "dish:" + d.name, data: Object.assign({}, d, { order: orders[k] }) }; }));
   }
   function openBfDayChoice(name) {
-    sheet.innerHTML = "<h3>哪天早饭吃「" + esc(name) + "」？</h3>" + '<p class="sheet-sub">点一天就定。</p>';
+    sheet.innerHTML = "<h3>哪天早饭吃「" + esc(name) + "」？</h3>" + momTip("点一天就定。");
     var g = el("div", "g-day-row");
     days().forEach(function (id) {
       var d = dayInfo(id), home = isHome(id, ui.me);
@@ -1637,7 +1660,7 @@
   function splitLines(s) { return String(s || "").split(/[\n、，,；;]+/).map(trim).filter(Boolean); }
   function openDishEditor(name) {
     var d = dish(name) || { name: name, meal: "dinner", cat: guessCat(name) };
-    sheet.innerHTML = "<h3>改「" + esc(name) + "」</h3>" + '<p class="sheet-sub">一行一样。</p>';
+    sheet.innerHTML = "<h3>改「" + esc(name) + "」</h3>" + momTip("一行一样。");
     sheet.appendChild(el("label", "f", "配料和份量"));
     var ings = el("textarea", "add-input"); ings.value = (d.ings || []).join("\n"); ings.setAttribute("aria-label", "配料");
     sheet.appendChild(ings);
@@ -1662,7 +1685,7 @@
   $("menu-add-btn").addEventListener("click", function () { openAddDish(); });
   function openAddDish(prefill) {
     var st = prefill || { name: "", meal: "dinner", cat: null, ings: "", steps: "" };
-    sheet.innerHTML = "<h3>加一道新菜</h3>" + '<p class="sheet-sub">打字或说话，确认了才进菜谱。</p>';
+    sheet.innerHTML = "<h3>加一道新菜</h3>" + momTip("打字或说话，确认了才进菜谱。");
     var row = el("div", "name-row");
     var input = el("input", "add-input"); input.type = "text"; input.placeholder = "菜名，比如：冬瓜排骨汤"; input.value = st.name; input.setAttribute("aria-label", "新菜的名字");
     row.appendChild(input); row.appendChild(voiceButton(input, "说话说菜名"));
@@ -1709,28 +1732,43 @@
     rec.list = [];
     renderRecommend(); openSheet();
     fetchRec();
+    // 常点的口味先在后台准备好，点了马上出来
+    setTimeout(function () { ["随便", "家常菜"].forEach(function (st) { if (st !== rec.style) loadStyle(st); }); }, 300);
   }
   function recMeal() { return rec.style === "早饭" ? "breakfast" : "dinner"; }
-  function fetchRec() {
-    var t = ++rec.ticket, meal = recMeal();
-    rec.loading = true; renderRecommend();
+  // 每种口味先准备一批（AI 只给菜名、一句话、主料，几秒就好）；用掉一批就再准备下一批
+  var recCache = {};
+  function loadStyle(style) {
+    if (recCache[style]) return recCache[style];
+    var meal = style === "早饭" ? "breakfast" : "dinner";
     var avoid = allDishes().map(function (d) { return d.name; }).concat(Object.keys(rec.seen));
-    ai("suggest", { meal: meal, style: rec.style === "随便" || rec.style === "早饭" ? "" : rec.style, avoid: avoid.slice(-150) }).then(function (r) {
-      var ds = (r.dishes || []).filter(function (x) { return x && x.name && !dish(x.name) && !rec.seen[x.name]; });
-      if (!ds.length) throw new Error("empty");
-      return ds;
-    }).catch(function () {
-      return D.RECOMMENDS.filter(function (r) { return !dish(r.name) && !rec.seen[r.name] && (meal === "breakfast" ? r.meal === "breakfast" : r.meal !== "breakfast"); }).slice(0, 4);
-    }).then(function (ds) {
-      if (t !== rec.ticket) return;
-      ds.forEach(function (x) { x.meal = meal; rec.seen[x.name] = true; });
+    var p = ai("suggest", { meal: meal, style: style === "随便" || style === "早饭" ? "" : style, avoid: avoid.slice(-150) }).then(function (r) {
+      return (r.dishes || []).filter(function (x) { return x && x.name; });
+    }).catch(function () { return []; }).then(function (ds) { ds.forEach(function (x) { x.meal = meal; }); return ds; });
+    recCache[style] = p;
+    return p;
+  }
+  function fetchRec() {
+    var t = ++rec.ticket, style = rec.style, meal = recMeal();
+    rec.loading = true; renderRecommend();
+    loadStyle(style).then(function (ds) {
+      if (t !== rec.ticket) return; // 已经换了别的口味：这批留着下次用
+      delete recCache[style];
+      ds = ds.filter(function (x) { return !dish(x.name) && !rec.seen[x.name]; });
+      if (!ds.length) ds = D.RECOMMENDS.filter(function (r) { return !dish(r.name) && !rec.seen[r.name] && (meal === "breakfast" ? r.meal === "breakfast" : r.meal !== "breakfast"); }).slice(0, 4);
+      ds.forEach(function (x) { rec.seen[x.name] = true; });
       rec.list = ds; rec.loading = false;
       if (sheetIsOpen() && sheet.querySelector(".rec-styles")) renderRecommend();
+      loadStyle(style); // 下一批先准备着
     });
   }
+  // AI 想的新菜只有菜名和主料：要了以后再让 AI 写配料和做法
+  function needsRecipe(r) { return !(r.steps && r.steps.length); }
   function addRec(r) {
     if (dish(r.name)) return;
-    S.put("dish:" + r.name, { name: r.name, meal: r.meal, cat: r.cat, ings: r.ings || [], steps: r.steps || [], prep: r.prep || "", order: newOrder() });
+    var bare = needsRecipe(r);
+    S.put("dish:" + r.name, { name: r.name, meal: r.meal, cat: r.cat, ings: bare ? [] : r.ings || [], steps: r.steps || [], prep: r.prep || "", order: newOrder() });
+    if (bare) fillRecipeLater(r.name, r.meal);
     log("菜谱里加了新菜：" + r.name);
     toast("加好了：" + r.name);
   }
@@ -1741,7 +1779,7 @@
     renderRecommend();
   }
   function renderRecommend() {
-    sheet.innerHTML = "<h3>✨ 帮我想新菜</h3>" + '<p class="sheet-sub">想吃哪一类？点一下，换一批就再想 4 道。</p>';
+    sheet.innerHTML = "<h3>✨ 帮我想新菜</h3>";
     var row = el("div", "rec-styles");
     REC_STYLES.forEach(function (st) {
       if (st === "早饭" && rec.ctx.meal) return;
@@ -1753,7 +1791,7 @@
       sheet.appendChild(el("div", "read-panel", "这一类暂时想不出新的了，换一类试试。"));
     } else rec.list.forEach(function (r) {
       var card = el("div", "rec-card", '<div class="rec-head">' + dishMedia(r.name) + '<div class="rec-name">' + esc(r.name) + "<small>" + (r.meal === "breakfast" ? "早饭" : "晚饭") + "</small></div></div>" +
-        '<div class="rec-blurb">' + esc(r.blurb || "") + '</div><div class="rec-ings">配料：' + esc((r.ings || []).join("、")) + "</div>");
+        '<div class="rec-blurb">' + esc(r.blurb || "") + '</div><div class="rec-ings">' + (needsRecipe(r) ? "主料：" : "配料：") + esc((r.ings || []).join("、")) + "</div>");
       var acts = el("div", "rec-acts");
       acts.appendChild(btn("want-btn", rec.ctx.pickText || "要这道", function () { pickRec(r); }, "把" + r.name + "加进菜谱"));
       acts.appendChild(btn("mini-btn", "看做法", function () { renderRecDetail(r); }));
@@ -1765,6 +1803,15 @@
     sheet.appendChild(rec.ctx.back ? btn("sheet-close", "← 返回", rec.ctx.back) : closeBtn("返回"));
   }
   function renderRecDetail(r) {
+    if (needsRecipe(r) && !r.loadingRecipe) {
+      r.loadingRecipe = true;
+      sheet.innerHTML = '<div class="read-panel rec-loading">✨ 正在写「' + esc(r.name) + '」的做法…</div>';
+      sheet.appendChild(btn("sheet-close", "← 返回", function () { r.loadingRecipe = false; renderRecommend(); }));
+      ai("recipe", { name: r.name, meal: r.meal }).then(function (x) {
+        r.ings = x.ings || r.ings; r.steps = x.steps || []; r.prep = x.prep || ""; r.cat = x.cat || r.cat;
+      }).catch(function () {}).then(function () { if (r.loadingRecipe) { r.loadingRecipe = false; if (!needsRecipe(r)) renderRecDetail(r); else { toast("做法没写出来，先加进菜谱，等会儿再看"); renderRecommend(); } } });
+      return;
+    }
     sheet.innerHTML = '<div class="ing-head">' + dishMedia(r.name) + '<div><div class="ih-name">' + esc(r.name) + '</div><div style="font-size:15px;color:#5d4f3f">' + esc(r.blurb || "") + "</div></div></div>";
     var ul = el("ul", "ing-list"); (r.ings || []).forEach(function (x) { ul.appendChild(el("li", null, esc(x))); }); sheet.appendChild(ul);
     sheet.appendChild(el("h4", null, "怎么做"));
@@ -1883,7 +1930,7 @@
     var togB = $("buy-toggle");
     setFold(togB, ui.buyOpen, items.length ? "一共 " + items.length + " 样，还有 " + need.filter(function (it) { return !boughtRecently(it.name); }).length + " 样没买" : "还没定菜", "收起");
     box.hidden = !ui.buyOpen;
-    if (!items.length) box.appendChild(el("div", "wish-none", "还没定菜，定了就会出现在这里。"));
+    if (!items.length) box.appendChild(el("div", "wish-none", "还没定菜"));
     // 顺序：要买的 → 调料 → 不用买的
     var order = items.filter(function (it) { return !it.pantry && !noNeed(it.name); })
       .concat(items.filter(function (it) { return it.pantry && !noNeed(it.name); }))
@@ -1967,7 +2014,7 @@
       b.type = "button"; b.setAttribute("aria-label", "这部手机是" + x.name + "的");
       b.addEventListener("click", function () {
         if (x.id === ui.me) return;
-        sheet.innerHTML = "<h3>这部手机换成" + esc(x.name) + "的？</h3>" + '<p class="sheet-sub">换了以后，打开就是' + esc(x.name) + "的那屏。</p>";
+        sheet.innerHTML = "<h3>这部手机换成" + esc(x.name) + "的？</h3>";
         sheet.appendChild(btn("sheet-cta", "对，换成" + x.name, function () { closeSheet(); setMe(x.id); toast("好了，这部手机是" + x.name + "的"); }));
         sheet.appendChild(closeBtn("不换"));
         openSheet();
@@ -2001,7 +2048,7 @@
   function renderShare() {
     var box = $("share-sec"); box.innerHTML = "";
     if (!S.household()) return;
-    box.appendChild(el("h2", "sec-title", "发给家里人 <span class=\"hint\">每人一个链接</span>"));
+    box.appendChild(el("h2", "sec-title", "发给家里人"));
     box.appendChild(el("div", "day-note", "用 iPhone 的 Safari 打开链接 → 点「分享」→「添加到主屏幕」。")).style.marginBottom = "10px";
     D.PEOPLE.forEach(function (p) {
       var link = linkFor(p.id);
@@ -2020,7 +2067,7 @@
   // 反馈：「我的」页底部和每屏最底部都有，同一份列表
   function buildFeedbackSlots() {
     document.querySelectorAll("[data-fb-slot]").forEach(function (slot) {
-      slot.innerHTML = '<h2 class="sec-title">说说想法 <span class="hint">说话或打字</span></h2>';
+      slot.innerHTML = '<h2 class="sec-title">说说想法</h2>';
       var box = el("div", "fb-box");
       var row = el("div", "name-row");
       var input = el("input", "add-input"); input.type = "text"; input.placeholder = "想说什么"; input.setAttribute("aria-label", "反馈内容");
@@ -2254,7 +2301,7 @@
     family: ["我明天不在家吃饭", "我超想吃小酥肉", "周三早饭吃馄饨", "这周末不在家"]
   };
   function openAssistant(prefill, note) {
-    sheet.innerHTML = "<h3>🎤 语音助手</h3>" + '<p class="sheet-sub">说一句话，我帮你办。先给你看一眼，对了才算。' + (note ? " " + esc(note) : "") + "</p>";
+    sheet.innerHTML = "<h3>🎤 语音助手</h3>" + momTip("说一句话，我帮你办。先给你看一眼，对了才算。" + (note ? " " + esc(note) : ""));
     var input = el("textarea", "add-input assist-input"); input.rows = 2; input.value = prefill || "";
     input.placeholder = "比如：" + ASSIST_EX[isMom() ? "mom" : "family"][0];
     input.setAttribute("aria-label", "说话或打字");

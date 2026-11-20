@@ -102,8 +102,9 @@ async function phone(me, tz) {
     if (b.task === "suggest") {
       aiCalls.suggest.push({ style: b.style, meal: b.meal, avoid: b.avoid || [] });
       const names = { "川菜": ["水煮牛肉", "宫保鸡丁", "鱼香茄子", "回锅肉"], "粤菜": ["干炒牛河", "蜜汁叉烧", "豉汁蒸排骨", "蚝油菜心"] }[b.style] || ["酸菜炒肉丝", "香菜拌牛肉", "番茄炒蛋", "蒜蓉粉丝蒸扇贝"];
-      return r.fulfill({ contentType: "application/json", body: JSON.stringify({ dishes: names.map((n) => ({ name: n, blurb: n + "很下饭", cat: "meat", ings: ["主料 300克", "姜 3 片"], steps: ["切好。", "下锅炒熟。"], prep: "" })) }) });
+      return r.fulfill({ contentType: "application/json", body: JSON.stringify({ dishes: names.map((n) => ({ name: n, blurb: n + "很下饭", cat: "meat", ings: ["牛肉", "姜"] })) }) });
     }
+    if (b.task === "recipe" && /水煮牛肉|宫保鸡丁|鱼香茄子|回锅肉|干炒牛河|蜜汁叉烧|酸菜炒肉丝|番茄炒蛋/.test(b.name)) { aiCalls.recipe = (aiCalls.recipe || 0) + 1; return r.fulfill({ contentType: "application/json", body: JSON.stringify({ cat: "meat", ings: ["牛肉 300克", "豆芽 1 把", "郫县豆瓣酱 1 勺"], steps: ["牛肉切片腌 10 分钟。", "豆芽焯水铺底。", "炒香豆瓣酱加水烧开，下肉片煮 2 分钟。"], prep: "" }) }); }
     return r.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "no_key" }) });
   });
   await ctx.route("**/api.open-meteo.com/**", (r) => { // 假天气，不连外网
@@ -690,12 +691,22 @@ await M.locator("#dinner-plan .add-dish").click();
 await M.locator(".sheet .rec-inline").click();
 await M.waitForSelector(".sheet .rec-styles");
 check("帮我想新菜先给口味选择", (await M.locator(".sheet .style-chip").allInnerTexts()).join(" ").includes("川菜") && (await M.locator(".sheet .style-chip").allInnerTexts()).join(" ").includes("粤菜"));
+await M.waitForTimeout(800);
+check("一打开帮我想新菜，就在后台先准备好「家常菜」", aiCalls.suggest.some((x) => x.style === "家常菜"), aiCalls.suggest.map((x) => x.style || "随便").join(","));
 await M.locator(".sheet .style-chip", { hasText: "川菜" }).click();
+await M.waitForSelector(".sheet .rec-card >> text=水煮牛肉");
+check("想新菜只先给菜名和主料（快）", /主料：牛肉、姜/.test(await M.locator(".sheet .rec-card", { hasText: "宫保鸡丁" }).innerText()));
+await M.locator(".sheet .rec-card", { hasText: "宫保鸡丁" }).locator(".mini-btn", { hasText: "看做法" }).click();
+await M.waitForSelector(".sheet >> text=牛肉切片腌 10 分钟。");
+check("点「看做法」才请 AI 写做法", (aiCalls.recipe || 0) >= 1);
+await M.locator(".sheet .sheet-close", { hasText: "返回" }).click();
 await M.waitForSelector(".sheet .rec-card >> text=水煮牛肉");
 const lastSug = aiCalls.suggest[aiCalls.suggest.length - 1];
 check("选川菜就请 AI 想川菜，避开菜谱里已有的", lastSug.style === "川菜" && lastSug.avoid.includes("红烧带鱼") && lastSug.avoid.includes("黄焖鸡"), JSON.stringify({ style: lastSug.style, n: lastSug.avoid.length }));
 await M.locator(".sheet .rec-card", { hasText: "水煮牛肉" }).locator(".want-btn").click(); await M.waitForTimeout(150);
 check("在定晚饭里挑中的新菜直接定进这天", /水煮牛肉/.test(await M.locator("#dinner-plan").innerText()));
+await M.waitForTimeout(400);
+check("挑中的新菜，配料做法在后台补上", await M.evaluate(() => { const d = MPStore.get("dish:水煮牛肉"); return !!d && d.ings.includes("牛肉 300克") && d.steps.length === 3; }));
 await M.screenshot({ path: `${SHOTS}/11-mom-add-dish.png` });
 await C.click("#nav-today"); await C.click("#dtab-order"); await C.waitForTimeout(150);
 await C.click("#fam-order-btn");
@@ -773,6 +784,28 @@ await M.click("#nav-today"); await M.click("#tab-plan"); await M.waitForTimeout(
 const stripTxt = await M.locator("#day-strip .day-grid").innerText();
 check("排到下周四的晚饭，在选日子里看得到（写「下周四」）", nextWk.diff < 7 || (/下周四/.test(stripTxt) && /✓ 已定/.test(stripTxt)), stripTxt.replace(/\n/g, " ").slice(-60));
 await M.locator("#day-strip").screenshot({ path: `${SHOTS}/17-next-week.png` });
+
+// 想吃：妈妈可以点「以后再做」，挪进折起来的小区；点「拿回来」又回来。家里人没有这个按钮
+await syncBoth(C, M);
+await M.click("#nav-today"); await M.click("#tab-plan"); await M.waitForTimeout(200);
+const lw = M.locator("#wishes .wish-group .chip", { hasText: "干炒牛河" });
+check("妈妈的想吃后面有「以后再做」", await lw.locator(".later-btn").count() === 1);
+await lw.locator(".later-btn").click(); await M.waitForTimeout(200);
+check("点了以后不在「最近想吃」里", await M.locator("#wishes .wish-group .chip", { hasText: "干炒牛河" }).count() === 0 && /以后再做（1）/.test(await M.locator("#wishes").innerText()));
+await M.locator("#wishes .fold-btn", { hasText: "以后再做" }).click(); await M.waitForTimeout(150);
+check("点开「以后再做」看得到，能拿回来", await M.locator("#wishes .later-chips .chip", { hasText: "干炒牛河" }).locator(".later-btn", { hasText: "拿回来" }).count() === 1);
+await M.locator("#wishes").screenshot({ path: `${SHOTS}/18-later.png` });
+await syncBoth(M, C);
+await C.click("#nav-today"); await C.click("#dtab-order"); await C.waitForTimeout(200);
+check("小陈那边看到自己的想吃写着「以后再做」，没有按钮", /干炒牛河[\s\S]*以后再做/.test(await C.locator("#fam-wishes").innerText()) && await C.locator("#fam-wishes .later-btn").count() === 0);
+await M.locator("#wishes .later-chips .later-btn", { hasText: "拿回来" }).click(); await M.waitForTimeout(200);
+check("拿回来又回到「最近想吃」", await M.locator("#wishes .wish-group .chip", { hasText: "干炒牛河" }).count() === 1 && !/以后再做（/.test(await M.locator("#wishes").innerText()));
+// 少点说明：家里人那屏没有小字说明；妈妈那屏留「先点哪天」
+check("家里人那屏没有小字说明", await C.locator("#view-family .hint").count() === 0 && !/挑一道，再选有多想吃/.test(await C.locator("#view-family").innerText()));
+check("妈妈那屏留几句提示", /先点哪天/.test(await M.locator("#view-today").innerText()));
+await C.click("#fam-order-btn");
+check("家里人点菜那页不写说明句", await C.locator(".sheet .sheet-sub").count() === 0);
+await C.locator(".sheet .sheet-close").last().click();
 
 check("妈妈手机没有脚本报错", mom.errors.length === 0, mom.errors.join(" | "));
 check("小陈手机没有脚本报错", chen.errors.length === 0, chen.errors.join(" | "));
