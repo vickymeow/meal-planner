@@ -310,3 +310,16 @@ img.act-dot.act-img { object-fit: cover; padding: 0; background: #f7e3c3; }
   padding: 12px 12px 12px 18px; border-radius: 20px; background: #3a2a1c; color: #fff; box-shadow: 0 12px 28px rgba(60,35,15,.32); font-size: 17px; font-weight: 700; line-height: 1.4; }
 .undo-bar .ub-txt { flex: 1; min-width: 0; }
 .undo-bar .ub-btn { flex: 0 0 auto; min-height: 48px; padding: 0 20px; border-radius: 14px; border: none; background: #f6cf6a; color: #2c2218; font-family: inherit; font-size: 18px; font-weight: 900; cursor: pointer; }
+
+/* 想吃：以后再做 */
+.chip .later-btn { min-height: 34px; padding: 0 12px; margin-left: 6px; border-radius: 999px; border: 1.5px solid #e2cf9c; background: #fffaf0; font-family: inherit; font-size: 14px; font-weight: 800; color: #6b4a0a; cursor: pointer; }
+.chip.later { opacity: .8; }
+.chip .later-tag { font-size: 12.5px; font-weight: 800; color: #7a6552; background: #f1e6d3; border-radius: 999px; padding: 2px 8px; }
+.chip .later-who { font-size: 13px; font-weight: 800; color: #7a6552; margin-right: 4px; }
+.later-chips { margin-top: 10px; }
+/* 妈妈那屏带「以后再做」的想吃：占一整行，菜名不挤，按钮靠右 */
+.chip.has-later { display: flex; flex-wrap: wrap; align-items: center; width: 100%; gap: 6px 8px; }
+.chip.has-later .chip-name { white-space: nowrap; }
+.chip.has-later .later-btn { margin-left: auto; white-space: nowrap; }
+.chip.has-later .x { flex: 0 0 auto; }
+.later-chips .chip .wish-msg, .later-chips .chip .later-tag { display: none; }

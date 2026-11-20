@@ -1,6 +1,6 @@
 // 早饭晚饭的 AI 助手（Supabase Edge Function）
 // - task "recipe"：给一道家常菜写详细的配料（带份量）和做法（火候、时间、怎么看熟）
-// - task "suggest"：帮我想新菜，按口味（川菜、粤菜…）一次推荐 4 道，不重复家里已有的
+// - task "suggest"：帮我想新菜，按口味（川菜、粤菜…）一次推荐 4 道，不重复家里已有的；只给菜名、一句话、主料（快），做法等要了再写
 // - task "intent"：把一句话（语音转的字）变成 App 里要做的事
 // - task "transcribe"：录音转文字（主屏 App 里浏览器自带的语音识别常常用不了）
 // - task "photo"：给一道菜生成一张写实菜品照（通义万相 / Qwen-Image），存进 mp-photos，写进家里的同步库
@@ -233,10 +233,8 @@ const SUGGEST_SCHEMA = {
           blurb: { type: "string" },
           cat: { type: "string", enum: ["fish", "meat", "egg", "tofu", "veg", "staple"] },
           ings: { type: "array", items: { type: "string" } },
-          steps: { type: "array", items: { type: "string" } },
-          prep: { type: "string" },
         },
-        required: ["name", "blurb", "cat", "ings", "steps", "prep"],
+        required: ["name", "blurb", "cat", "ings"],
         additionalProperties: false,
       },
     },
@@ -404,13 +402,11 @@ Deno.serve(async (req) => {
     user = `推荐 4 道${style ? "「" + style + "」" : "各种口味的"}${meal}。
 要求：家里厨房就能做，食材在华人超市（比如 Weee、99 大华）买得到；4 道的主料要不一样，不要全是猪肉。
 不要推荐这些（家里已经有，或者刚看过）：${avoid || "无"}
-每道写：
+每道只写（越短越好，不要写做法）：
 - name：常见的菜名，不加形容词
-- blurb：一句话说这道菜好在哪
+- blurb：一句话（15 字以内）说这道菜好在哪
 - cat：主料分类，fish 鱼 / meat 肉（含鸡鸭虾）/ egg 蛋 / tofu 豆腐 / veg 青菜素菜 / staple 主食面点
-- ings：配料带份量，6 到 10 样，每样写成「名字 份量」，比如「排骨 500克」「生抽 2 勺」
-- steps：做法 5 到 8 步，每步一两句，写清楚火候和大概几分钟，不要写序号
-- prep：需要提前买、泡、腌或解冻的一句话，不需要就空字符串`;
+- ings：主要食材 2 到 4 样，只写名字，比如「牛肉」「豆芽」`;
     schema = SUGGEST_SCHEMA;
   } else if (body.task === "intent") {
     const text = String(body.text || "").slice(0, 300);
@@ -443,9 +439,7 @@ Deno.serve(async (req) => {
         name: String(d.name).trim().slice(0, 20),
         blurb: String(d.blurb || "").slice(0, 80),
         cat: cats.includes(d.cat) ? d.cat : "veg",
-        ings: (Array.isArray(d.ings) ? d.ings : []).map(String).slice(0, 12),
-        steps: (Array.isArray(d.steps) ? d.steps : []).map((x: unknown) => String(x).replace(/^\s*(第?\d+步?[.、．:：)）]\s*)/, "")).slice(0, 10),
-        prep: String(d.prep || ""),
+        ings: (Array.isArray(d.ings) ? d.ings : []).map(String).slice(0, 6),
       }));
     } else {
       out.actions = (Array.isArray(out.actions) ? out.actions : []).filter((a: any) => a && ["home", "wish", "dinner", "breakfast", "buy", "bf_switch"].includes(a.type));
